@@ -73,7 +73,7 @@ fn set_windows_sandbox_enabled(enabled: bool) {
 }
 
 async fn test_config() -> Config {
-    // Use base defaults to avoid depending on host state.
+    // ホスト状態への依存を避けるためベースデフォルトを使用。
     let codex_home = std::env::temp_dir();
     ConfigBuilder::default()
         .codex_home(codex_home.clone())
@@ -150,7 +150,7 @@ async fn resumed_initial_messages_render_history() {
     );
 }
 
-/// Entering review mode uses the hint provided by the review request.
+/// レビューモードに入る際はレビューリクエストで提供されたヒントを使用する。
 #[tokio::test]
 async fn entered_review_mode_uses_request_hint() {
     let (mut chat, mut rx, _ops) = make_chatwidget_manual(None).await;
@@ -171,7 +171,7 @@ async fn entered_review_mode_uses_request_hint() {
     assert!(chat.is_review_mode);
 }
 
-/// Entering review mode renders the current changes banner when requested.
+/// レビューモードに入る際、リクエストに応じて現在の変更バナーをレンダリングする。
 #[tokio::test]
 async fn entered_review_mode_defaults_to_current_changes_banner() {
     let (mut chat, mut rx, _ops) = make_chatwidget_manual(None).await;
@@ -190,14 +190,14 @@ async fn entered_review_mode_defaults_to_current_changes_banner() {
     assert!(chat.is_review_mode);
 }
 
-/// Exiting review restores the pre-review context window indicator.
+/// レビュー終了時にレビュー前のコンテキストウィンドウインジケーターを復元する。
 #[tokio::test]
 async fn review_restores_context_window_indicator() {
     let (mut chat, mut rx, _ops) = make_chatwidget_manual(None).await;
 
     let context_window = 13_000;
-    let pre_review_tokens = 12_700; // ~30% remaining after subtracting baseline.
-    let review_tokens = 12_030; // ~97% remaining after subtracting baseline.
+    let pre_review_tokens = 12_700; // ベースライン減算後 ~30% 残り。
+    let review_tokens = 12_030; // ベースライン減算後 ~97% 残り。
 
     chat.handle_codex_event(Event {
         id: "token-before".into(),
@@ -239,7 +239,7 @@ async fn review_restores_context_window_indicator() {
     assert!(!chat.is_review_mode);
 }
 
-/// Receiving a TokenCount event without usage clears the context indicator.
+/// 使用量なしのTokenCountイベントを受信するとコンテキストインジケーターがクリアされる。
 #[tokio::test]
 async fn token_count_none_resets_context_indicator() {
     let (mut chat, _rx, _ops) = make_chatwidget_manual(None).await;
@@ -274,7 +274,7 @@ async fn context_indicator_shows_used_tokens_when_window_unknown() {
     let auto_compact_limit = 200_000;
     chat.config.model_auto_compact_token_limit = Some(auto_compact_limit);
 
-    // No model window, so the indicator should fall back to showing tokens used.
+    // モデルウィンドウがないため、インジケーターは使用トークン数の表示にフォールバックする。
     let total_tokens = 106_000;
     let token_usage = TokenUsage {
         total_tokens,
@@ -303,7 +303,7 @@ async fn context_indicator_shows_used_tokens_when_window_unknown() {
 
 #[cfg_attr(
     target_os = "macos",
-    ignore = "system configuration APIs are blocked under macOS seatbelt"
+    ignore = "macOSシートベルト下ではシステム設定APIがブロックされる"
 )]
 #[tokio::test]
 async fn helpers_are_available_and_do_not_panic() {
@@ -331,11 +331,11 @@ async fn helpers_are_available_and_do_not_panic() {
         model_family,
     };
     let mut w = ChatWidget::new(init, conversation_manager);
-    // Basic construction sanity.
+    // 基本的な構築の健全性チェック。
     let _ = &mut w;
 }
 
-// --- Helpers for tests that need direct construction and event draining ---
+// --- 直接構築とイベントドレインが必要なテスト用ヘルパー ---
 async fn make_chatwidget_manual(
     model_override: Option<&str>,
 ) -> (
@@ -495,7 +495,7 @@ async fn rate_limit_warnings_emit_thresholds() {
                 "Heads up, you have less than 5% of your weekly limit left. Run /status for a breakdown.",
             ),
         ],
-        "expected one warning per limit for the highest crossed threshold"
+        "制限ごとに最高の超過閾値について1つの警告が期待される"
     );
 }
 
@@ -510,7 +510,7 @@ async fn test_rate_limit_warnings_monthly() {
         vec![String::from(
             "Heads up, you have less than 25% of your monthly limit left. Run /status for a breakdown.",
         ),],
-        "expected one warning per limit for the highest crossed threshold"
+        "制限ごとに最高の超過閾値について1つの警告が期待される"
     );
 }
 
@@ -549,11 +549,11 @@ async fn rate_limit_snapshot_keeps_prior_credits_when_missing_from_headers() {
     let display = chat
         .rate_limit_snapshot
         .as_ref()
-        .expect("rate limits should be cached");
+        .expect("レート制限がキャッシュされているべき");
     let credits = display
         .credits
         .as_ref()
-        .expect("credits should persist when headers omit them");
+        .expect("ヘッダーに含まれない場合でもクレジットは保持されるべき");
 
     assert_eq!(credits.balance.as_deref(), Some("17.5"));
     assert!(!credits.unlimited);
@@ -639,7 +639,7 @@ async fn rate_limit_switch_prompt_shows_once_per_session() {
     chat.on_rate_limit_snapshot(Some(snapshot(90.0)));
     assert!(
         chat.rate_limit_warnings.primary_index >= 1,
-        "warnings not emitted"
+        "警告が発行されていない"
     );
     chat.maybe_show_pending_rate_limit_prompt();
     assert!(matches!(
@@ -703,13 +703,13 @@ async fn rate_limit_switch_prompt_popup_snapshot() {
     assert_snapshot!("rate_limit_switch_prompt_popup", popup);
 }
 
-// (removed experimental resize snapshot test)
+// （実験的なリサイズスナップショットテストは削除済み）
 
 #[tokio::test]
 async fn exec_approval_emits_proposed_command_and_decision_history() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Trigger an exec approval request with a short, single-line command
+    // 短い単一行コマンドで実行承認リクエストをトリガー
     let ev = ExecApprovalRequestEvent {
         call_id: "call-short".into(),
         turn_id: "turn-short".into(),
@@ -729,20 +729,20 @@ async fn exec_approval_emits_proposed_command_and_decision_history() {
     let proposed_cells = drain_insert_history(&mut rx);
     assert!(
         proposed_cells.is_empty(),
-        "expected approval request to render via modal without emitting history cells"
+        "承認リクエストは履歴セルを発行せずモーダル経由でレンダリングされるべき"
     );
 
-    // The approval modal should display the command snippet for user confirmation.
+    // 承認モーダルはユーザー確認用にコマンドスニペットを表示すべき。
     let area = Rect::new(0, 0, 80, chat.desired_height(80));
     let mut buf = ratatui::buffer::Buffer::empty(area);
     chat.render(area, &mut buf);
     assert_snapshot!("exec_approval_modal_exec", format!("{buf:?}"));
 
-    // Approve via keyboard and verify a concise decision history line is added
+    // キーボードで承認し、簡潔な決定履歴行が追加されることを検証
     chat.handle_key_event(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE));
     let decision = drain_insert_history(&mut rx)
         .pop()
-        .expect("expected decision cell in history");
+        .expect("履歴に決定セルが存在するべき");
     assert_snapshot!(
         "exec_approval_history_decision_approved_short",
         lines_to_single_string(&decision)
@@ -753,7 +753,7 @@ async fn exec_approval_emits_proposed_command_and_decision_history() {
 async fn exec_approval_decision_truncates_multiline_and_long_commands() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Multiline command: modal should show full command, history records decision only
+    // 複数行コマンド: モーダルは完全なコマンドを表示し、履歴は決定のみを記録
     let ev_multi = ExecApprovalRequestEvent {
         call_id: "call-multi".into(),
         turn_id: "turn-multi".into(),
@@ -772,7 +772,7 @@ async fn exec_approval_decision_truncates_multiline_and_long_commands() {
     let proposed_multi = drain_insert_history(&mut rx);
     assert!(
         proposed_multi.is_empty(),
-        "expected multiline approval request to render via modal without emitting history cells"
+        "複数行承認リクエストは履歴セルを発行せずモーダル経由でレンダリングされるべき"
     );
 
     let area = Rect::new(0, 0, 80, chat.desired_height(80));
@@ -791,20 +791,20 @@ async fn exec_approval_decision_truncates_multiline_and_long_commands() {
     }
     assert!(
         saw_first_line,
-        "expected modal to show first line of multiline snippet"
+        "モーダルは複数行スニペットの最初の行を表示すべき"
     );
 
-    // Deny via keyboard; decision snippet should be single-line and elided with " ..."
+    // キーボードで拒否; 決定スニペットは単一行で " ..." で省略されるべき
     chat.handle_key_event(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE));
     let aborted_multi = drain_insert_history(&mut rx)
         .pop()
-        .expect("expected aborted decision cell (multiline)");
+        .expect("中断された決定セルが存在するべき（複数行）");
     assert_snapshot!(
         "exec_approval_history_decision_aborted_multiline",
         lines_to_single_string(&aborted_multi)
     );
 
-    // Very long single-line command: decision snippet should be truncated <= 80 chars with trailing ...
+    // 非常に長い単一行コマンド: 決定スニペットは末尾の...付きで80文字以下に切り詰められるべき
     let long = format!("echo {}", "a".repeat(200));
     let ev_long = ExecApprovalRequestEvent {
         call_id: "call-long".into(),
@@ -822,27 +822,27 @@ async fn exec_approval_decision_truncates_multiline_and_long_commands() {
     let proposed_long = drain_insert_history(&mut rx);
     assert!(
         proposed_long.is_empty(),
-        "expected long approval request to avoid emitting history cells before decision"
+        "長い承認リクエストは決定前に履歴セルを発行すべきでない"
     );
     chat.handle_key_event(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE));
     let aborted_long = drain_insert_history(&mut rx)
         .pop()
-        .expect("expected aborted decision cell (long)");
+        .expect("中断された決定セルが存在するべき（長い）");
     assert_snapshot!(
         "exec_approval_history_decision_aborted_long",
         lines_to_single_string(&aborted_long)
     );
 }
 
-// --- Small helpers to tersely drive exec begin/end and snapshot active cell ---
+// --- exec begin/end を簡潔に実行しアクティブセルをスナップショットするための小さなヘルパー ---
 fn begin_exec_with_source(
     chat: &mut ChatWidget,
     call_id: &str,
     raw_cmd: &str,
     source: ExecCommandSource,
 ) -> ExecCommandBeginEvent {
-    // Build the full command vec and parse it using core's parser,
-    // then convert to protocol variants for the event payload.
+    // コアのパーサーを使用して完全なコマンドベクターを構築しパースし、
+    // イベントペイロード用にプロトコルバリアントに変換。
     let command = vec!["bash".to_string(), "-lc".to_string(), raw_cmd.to_string()];
     let parsed_cmd: Vec<ParsedCommand> = codex_core::parse_command::parse_command(&command);
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -936,13 +936,13 @@ fn get_available_model(chat: &ChatWidget, model: &str) -> ModelPreset {
 async fn empty_enter_during_task_does_not_queue() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Simulate running task so submissions would normally be queued.
+    // 実行中タスクをシミュレートし、送信が通常キューに入るようにする。
     chat.bottom_pane.set_task_running(true);
 
-    // Press Enter with an empty composer.
+    // 空のコンポーザーでEnterを押す。
     chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-    // Ensure nothing was queued.
+    // 何もキューに入っていないことを確認。
     assert!(chat.queued_user_messages.is_empty());
 }
 
@@ -950,25 +950,25 @@ async fn empty_enter_during_task_does_not_queue() {
 async fn alt_up_edits_most_recent_queued_message() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Simulate a running task so messages would normally be queued.
+    // 実行中タスクをシミュレートし、メッセージが通常キューに入るようにする。
     chat.bottom_pane.set_task_running(true);
 
-    // Seed two queued messages.
+    // 2つのキュー済みメッセージをシード。
     chat.queued_user_messages
         .push_back(UserMessage::from("first queued".to_string()));
     chat.queued_user_messages
         .push_back(UserMessage::from("second queued".to_string()));
     chat.refresh_queued_user_messages();
 
-    // Press Alt+Up to edit the most recent (last) queued message.
+    // Alt+Upを押して最新（最後）のキュー済みメッセージを編集。
     chat.handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::ALT));
 
-    // Composer should now contain the last queued message.
+    // コンポーザーに最後のキュー済みメッセージが含まれているはず。
     assert_eq!(
         chat.bottom_pane.composer_text(),
         "second queued".to_string()
     );
-    // And the queue should now contain only the remaining (older) item.
+    // そしてキューには残りの（古い）アイテムのみが含まれているはず。
     assert_eq!(chat.queued_user_messages.len(), 1);
     assert_eq!(
         chat.queued_user_messages.front().unwrap().text,
@@ -976,26 +976,25 @@ async fn alt_up_edits_most_recent_queued_message() {
     );
 }
 
-/// Pressing Up to recall the most recent history entry and immediately queuing
-/// it while a task is running should always enqueue the same text, even when it
-/// is queued repeatedly.
+/// Upキーを押して最新の履歴エントリを呼び出し、タスク実行中にすぐキューに入れると、
+/// 繰り返しキューに入れても常に同じテキストがキューに入るべき。
 #[tokio::test]
 async fn enqueueing_history_prompt_multiple_times_is_stable() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Submit an initial prompt to seed history.
+    // 履歴をシードするための初期プロンプトを送信。
     chat.bottom_pane.set_composer_text("repeat me".to_string());
     chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-    // Simulate an active task so further submissions are queued.
+    // アクティブなタスクをシミュレートし、以降の送信がキューに入るようにする。
     chat.bottom_pane.set_task_running(true);
 
     for _ in 0..3 {
-        // Recall the prompt from history and ensure it is what we expect.
+        // 履歴からプロンプトを呼び出し、期待通りであることを確認。
         chat.handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
         assert_eq!(chat.bottom_pane.composer_text(), "repeat me");
 
-        // Queue the prompt while the task is running.
+        // タスク実行中にプロンプトをキューに入れる。
         chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
     }
 
@@ -1085,29 +1084,29 @@ async fn ctrl_c_cleared_prompt_is_recoverable_via_history() {
 async fn exec_history_cell_shows_working_then_completed() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Begin command
+    // コマンド開始
     let begin = begin_exec(&mut chat, "call-1", "echo done");
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 0, "no exec cell should have been flushed yet");
+    assert_eq!(cells.len(), 0, "まだexecセルはフラッシュされていないはず");
 
-    // End command successfully
+    // コマンド成功終了
     end_exec(&mut chat, begin, "done", "", 0);
 
     let cells = drain_insert_history(&mut rx);
-    // Exec end now finalizes and flushes the exec cell immediately.
-    assert_eq!(cells.len(), 1, "expected finalized exec cell to flush");
-    // Inspect the flushed exec cell rendering.
+    // 実行終了で即座に確定してexecセルをフラッシュ。
+    assert_eq!(cells.len(), 1, "確定されたexecセルがフラッシュされるべき");
+    // フラッシュされたexecセルのレンダリングを検査。
     let lines = &cells[0];
     let blob = lines_to_single_string(lines);
-    // New behavior: no glyph markers; ensure command is shown and no panic.
+    // 新しい動作: グリフマーカーなし; コマンドが表示されパニックしないことを確認。
     assert!(
         blob.contains("• Ran"),
-        "expected summary header present: {blob:?}"
+        "サマリーヘッダーが存在するべき: {blob:?}"
     );
     assert!(
         blob.contains("echo done"),
-        "expected command text to be present: {blob:?}"
+        "コマンドテキストが存在するべき: {blob:?}"
     );
 }
 
@@ -1115,24 +1114,24 @@ async fn exec_history_cell_shows_working_then_completed() {
 async fn exec_history_cell_shows_working_then_failed() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Begin command
+    // コマンド開始
     let begin = begin_exec(&mut chat, "call-2", "false");
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 0, "no exec cell should have been flushed yet");
+    assert_eq!(cells.len(), 0, "まだexecセルはフラッシュされていないはず");
 
-    // End command with failure
+    // 失敗でコマンド終了
     end_exec(&mut chat, begin, "", "Bloop", 2);
 
     let cells = drain_insert_history(&mut rx);
-    // Exec end with failure should also flush immediately.
-    assert_eq!(cells.len(), 1, "expected finalized exec cell to flush");
+    // 失敗での実行終了も即座にフラッシュすべき。
+    assert_eq!(cells.len(), 1, "確定されたexecセルがフラッシュされるべき");
     let lines = &cells[0];
     let blob = lines_to_single_string(lines);
     assert!(
         blob.contains("• Ran false"),
-        "expected command and header text present: {blob:?}"
+        "コマンドとヘッダーテキストが存在するべき: {blob:?}"
     );
-    assert!(blob.to_lowercase().contains("bloop"), "expected error text");
+    assert!(blob.to_lowercase().contains("bloop"), "エラーテキストが存在するべき");
 }
 
 #[tokio::test]
@@ -1166,15 +1165,15 @@ async fn exec_end_without_begin_uses_event_command() {
     });
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1, "expected finalized exec cell to flush");
+    assert_eq!(cells.len(), 1, "確定されたexecセルがフラッシュされるべき");
     let blob = lines_to_single_string(&cells[0]);
     assert!(
         blob.contains("• Ran echo orphaned"),
-        "expected command text to come from event: {blob:?}"
+        "コマンドテキストはイベントから取得されるべき: {blob:?}"
     );
     assert!(
         !blob.contains("call-orphan"),
-        "call id should not be rendered when event has the command: {blob:?}"
+        "イベントにコマンドがある場合call idはレンダリングされるべきでない: {blob:?}"
     );
 }
 
@@ -1190,37 +1189,37 @@ async fn exec_history_shows_unified_exec_startup_commands() {
     );
     assert!(
         drain_insert_history(&mut rx).is_empty(),
-        "exec begin should not flush until completion"
+        "exec beginは完了するまでフラッシュすべきでない"
     );
 
     end_exec(&mut chat, begin, "echo unified exec startup\n", "", 0);
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1, "expected finalized exec cell to flush");
+    assert_eq!(cells.len(), 1, "確定されたexecセルがフラッシュされるべき");
     let blob = lines_to_single_string(&cells[0]);
     assert!(
         blob.contains("• Ran echo unified exec startup"),
-        "expected startup command to render: {blob:?}"
+        "スタートアップコマンドがレンダリングされるべき: {blob:?}"
     );
 }
 
-/// Selecting the custom prompt option from the review popup sends
-/// OpenReviewCustomPrompt to the app event channel.
+/// レビューポップアップからカスタムプロンプトオプションを選択すると
+/// アプリイベントチャンネルにOpenReviewCustomPromptを送信する。
 #[tokio::test]
 async fn review_popup_custom_prompt_action_sends_event() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Open the preset selection popup
+    // プリセット選択ポップアップを開く
     chat.open_review_popup();
 
-    // Move selection down to the fourth item: "Custom review instructions"
+    // 選択を4番目のアイテム「カスタムレビュー指示」に移動
     chat.handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     chat.handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     chat.handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
-    // Activate
+    // アクティベート
     chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-    // Drain events and ensure we saw the OpenReviewCustomPrompt request
+    // イベントをドレインしOpenReviewCustomPromptリクエストを確認
     let mut found = false;
     while let Ok(ev) = rx.try_recv() {
         if let AppEvent::OpenReviewCustomPrompt = ev {
@@ -1228,7 +1227,7 @@ async fn review_popup_custom_prompt_action_sends_event() {
             break;
         }
     }
-    assert!(found, "expected OpenReviewCustomPrompt event to be sent");
+    assert!(found, "OpenReviewCustomPromptイベントが送信されるべき");
 }
 
 #[tokio::test]
@@ -1247,15 +1246,15 @@ async fn slash_init_skips_when_project_doc_exists() {
     }
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1, "expected one info message");
+    assert_eq!(cells.len(), 1, "1つの情報メッセージが期待される");
     let rendered = lines_to_single_string(&cells[0]);
     assert!(
         rendered.contains(DEFAULT_PROJECT_DOC_FILENAME),
-        "info message should mention the existing file: {rendered:?}"
+        "情報メッセージは既存ファイルに言及すべき: {rendered:?}"
     );
     assert!(
         rendered.contains("Skipping /init"),
-        "info message should explain why /init was skipped: {rendered:?}"
+        "情報メッセージは/initがスキップされた理由を説明すべき: {rendered:?}"
     );
     assert_eq!(
         std::fs::read_to_string(existing_path).unwrap(),
@@ -1299,11 +1298,11 @@ async fn slash_rollout_displays_current_path() {
     chat.dispatch_command(SlashCommand::Rollout);
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1, "expected info message for rollout path");
+    assert_eq!(cells.len(), 1, "ロールアウトパスの情報メッセージが期待される");
     let rendered = lines_to_single_string(&cells[0]);
     assert!(
         rendered.contains(&rollout_path.display().to_string()),
-        "expected rollout path to be shown: {rendered}"
+        "ロールアウトパスが表示されるべき: {rendered}"
     );
 }
 
@@ -1317,12 +1316,12 @@ async fn slash_rollout_handles_missing_path() {
     assert_eq!(
         cells.len(),
         1,
-        "expected info message explaining missing path"
+        "パス不足を説明する情報メッセージが期待される"
     );
     let rendered = lines_to_single_string(&cells[0]);
     assert!(
         rendered.contains("not available"),
-        "expected missing rollout path message: {rendered}"
+        "ロールアウトパス不在メッセージが期待される: {rendered}"
     );
 }
 
@@ -1338,7 +1337,7 @@ async fn undo_success_events_render_info_messages() {
     });
     assert!(
         chat.bottom_pane.status_indicator_visible(),
-        "status indicator should be visible during undo"
+        "undo中はステータスインジケーターが表示されるべき"
     );
 
     chat.handle_codex_event(Event {
@@ -1350,16 +1349,16 @@ async fn undo_success_events_render_info_messages() {
     });
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1, "expected final status only");
+    assert_eq!(cells.len(), 1, "最終ステータスのみが期待される");
     assert!(
         !chat.bottom_pane.status_indicator_visible(),
-        "status indicator should be hidden after successful undo"
+        "成功したundo後はステータスインジケーターが非表示になるべき"
     );
 
     let completed = lines_to_single_string(&cells[0]);
     assert!(
         completed.contains("Undo completed successfully."),
-        "expected default success message, got {completed:?}"
+        "デフォルト成功メッセージが期待される、取得: {completed:?}"
     );
 }
 
@@ -1373,7 +1372,7 @@ async fn undo_failure_events_render_error_message() {
     });
     assert!(
         chat.bottom_pane.status_indicator_visible(),
-        "status indicator should be visible during undo"
+        "undo中はステータスインジケーターが表示されるべき"
     );
 
     chat.handle_codex_event(Event {
@@ -1385,16 +1384,16 @@ async fn undo_failure_events_render_error_message() {
     });
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1, "expected final status only");
+    assert_eq!(cells.len(), 1, "最終ステータスのみが期待される");
     assert!(
         !chat.bottom_pane.status_indicator_visible(),
-        "status indicator should be hidden after failed undo"
+        "失敗したundo後はステータスインジケーターが非表示になるべき"
     );
 
     let completed = lines_to_single_string(&cells[0]);
     assert!(
         completed.contains("Failed to restore workspace state."),
-        "expected failure message, got {completed:?}"
+        "失敗メッセージが期待される、取得: {completed:?}"
     );
 }
 
@@ -1410,22 +1409,22 @@ async fn undo_started_hides_interrupt_hint() {
     let status = chat
         .bottom_pane
         .status_widget()
-        .expect("status indicator should be active");
+        .expect("ステータスインジケーターがアクティブであるべき");
     assert!(
         !status.interrupt_hint_visible(),
-        "undo should hide the interrupt hint because the operation cannot be cancelled"
+        "undoは操作がキャンセルできないため割り込みヒントを非表示にすべき"
     );
 }
 
-/// The commit picker shows only commit subjects (no timestamps).
+/// コミットピッカーはコミットサブジェクトのみを表示する（タイムスタンプなし）。
 #[tokio::test]
 async fn review_commit_picker_shows_subjects_without_timestamps() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Open the Review presets parent popup.
+    // レビュープリセット親ポップアップを開く。
     chat.open_review_popup();
 
-    // Show commit picker with synthetic entries.
+    // 合成エントリでコミットピッカーを表示。
     let entries = vec![
         codex_core::git_info::CommitLogEntry {
             sha: "1111111deadbeef".to_string(),
@@ -1440,7 +1439,7 @@ async fn review_commit_picker_shows_subjects_without_timestamps() {
     ];
     super::show_review_commit_picker_with_entries(&mut chat, entries);
 
-    // Render the bottom pane and inspect the lines for subjects and absence of time words.
+    // ボトムペインをレンダリングしサブジェクトと時間単語の不在を検査。
     let width = 72;
     let height = chat.desired_height(width);
     let area = ratatui::layout::Rect::new(0, 0, width, height);
@@ -1462,11 +1461,11 @@ async fn review_commit_picker_shows_subjects_without_timestamps() {
 
     assert!(
         blob.contains("Add new feature X"),
-        "expected subject in output"
+        "出力にサブジェクトが期待される"
     );
-    assert!(blob.contains("Fix bug Y"), "expected subject in output");
+    assert!(blob.contains("Fix bug Y"), "出力にサブジェクトが期待される");
 
-    // Ensure no relative-time phrasing is present.
+    // 相対時間表現がないことを確認。
     let lowered = blob.to_lowercase();
     assert!(
         !lowered.contains("ago")
@@ -1474,23 +1473,23 @@ async fn review_commit_picker_shows_subjects_without_timestamps() {
             && !lowered.contains(" minute")
             && !lowered.contains(" hour")
             && !lowered.contains(" day"),
-        "expected no relative time in commit picker output: {blob:?}"
+        "コミットピッカー出力に相対時間がないべき: {blob:?}"
     );
 }
 
-/// Submitting the custom prompt view sends Op::Review with the typed prompt
-/// and uses the same text for the user-facing hint.
+/// カスタムプロンプトビューを送信するとOp::Reviewを入力されたプロンプトで送信し、
+/// 同じテキストをユーザー向けヒントとして使用する。
 #[tokio::test]
 async fn custom_prompt_submit_sends_review_op() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
     chat.show_review_custom_prompt();
-    // Paste prompt text via ChatWidget handler, then submit
+    // ChatWidgetハンドラー経由でプロンプトテキストをペーストし送信
     chat.handle_paste("  please audit dependencies  ".to_string());
     chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-    // Expect AppEvent::CodexOp(Op::Review { .. }) with trimmed prompt
-    let evt = rx.try_recv().expect("expected one app event");
+    // トリムされたプロンプトでAppEvent::CodexOp(Op::Review { .. })を期待
+    let evt = rx.try_recv().expect("1つのアプリイベントが期待される");
     match evt {
         AppEvent::CodexOp(Op::Review { review_request }) => {
             assert_eq!(
@@ -1507,17 +1506,17 @@ async fn custom_prompt_submit_sends_review_op() {
     }
 }
 
-/// Hitting Enter on an empty custom prompt view does not submit.
+/// 空のカスタムプロンプトビューでEnterを押しても送信されない。
 #[tokio::test]
 async fn custom_prompt_enter_empty_does_not_send() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
     chat.show_review_custom_prompt();
-    // Enter without any text
+    // テキストなしでEnter
     chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-    // No AppEvent::CodexOp should be sent
-    assert!(rx.try_recv().is_err(), "no app event should be sent");
+    // AppEvent::CodexOpは送信されるべきでない
+    assert!(rx.try_recv().is_err(), "アプリイベントは送信されるべきでない");
 }
 
 #[tokio::test]
@@ -1534,22 +1533,22 @@ async fn view_image_tool_call_adds_history_cell() {
     });
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1, "expected a single history cell");
+    assert_eq!(cells.len(), 1, "単一の履歴セルが期待される");
     let combined = lines_to_single_string(&cells[0]);
     assert_snapshot!("local_image_attachment_history_snapshot", combined);
 }
 
-// Snapshot test: interrupting a running exec finalizes the active cell with a red ✗
-// marker (replacing the spinner) and flushes it into history.
+// スナップショットテスト: 実行中のexecを中断するとアクティブセルを赤い✗マーカー
+// （スピナーの代わり）で確定し履歴にフラッシュする。
 #[tokio::test]
 async fn interrupt_exec_marks_failed_snapshot() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Begin a long-running command so we have an active exec cell with a spinner.
+    // スピナー付きのアクティブなexecセルを持つために長時間実行コマンドを開始。
     begin_exec(&mut chat, "call-int", "sleep 1");
 
-    // Simulate the task being aborted (as if ESC was pressed), which should
-    // cause the active exec cell to be finalized as failed and flushed.
+    // タスクが中断されたことをシミュレート（ESCが押されたかのように）、
+    // これによりアクティブなexecセルが失敗として確定しフラッシュされる。
     chat.handle_codex_event(Event {
         id: "call-int".into(),
         msg: EventMsg::TurnAborted(codex_core::protocol::TurnAbortedEvent {
@@ -1560,21 +1559,21 @@ async fn interrupt_exec_marks_failed_snapshot() {
     let cells = drain_insert_history(&mut rx);
     assert!(
         !cells.is_empty(),
-        "expected finalized exec cell to be inserted into history"
+        "確定されたexecセルが履歴に挿入されるべき"
     );
 
-    // The first inserted cell should be the finalized exec; snapshot its text.
+    // 最初に挿入されたセルは確定されたexecであるべき; そのテキストをスナップショット。
     let exec_blob = lines_to_single_string(&cells[0]);
     assert_snapshot!("interrupt_exec_marks_failed", exec_blob);
 }
 
-// Snapshot test: after an interrupted turn, a gentle error message is inserted
-// suggesting the user to tell the model what to do differently and to use /feedback.
+// スナップショットテスト: 中断されたターン後、モデルに別の方法を伝えることと
+// /feedbackを使用することを提案する穏やかなエラーメッセージが挿入される。
 #[tokio::test]
 async fn interrupted_turn_error_message_snapshot() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Simulate an in-progress task so the widget is in a running state.
+    // ウィジェットが実行中状態になるように進行中タスクをシミュレート。
     chat.handle_codex_event(Event {
         id: "task-1".into(),
         msg: EventMsg::TaskStarted(TaskStartedEvent {
@@ -1582,7 +1581,7 @@ async fn interrupted_turn_error_message_snapshot() {
         }),
     });
 
-    // Abort the turn (like pressing Esc) and drain inserted history.
+    // ターンを中断（Escを押したかのように）し挿入された履歴をドレイン。
     chat.handle_codex_event(Event {
         id: "task-1".into(),
         msg: EventMsg::TurnAborted(codex_core::protocol::TurnAbortedEvent {
@@ -1593,80 +1592,80 @@ async fn interrupted_turn_error_message_snapshot() {
     let cells = drain_insert_history(&mut rx);
     assert!(
         !cells.is_empty(),
-        "expected error message to be inserted after interruption"
+        "中断後にエラーメッセージが挿入されるべき"
     );
     let last = lines_to_single_string(cells.last().unwrap());
     assert_snapshot!("interrupted_turn_error_message", last);
 }
 
-/// Opening custom prompt from the review popup, pressing Esc returns to the
-/// parent popup, pressing Esc again dismisses all panels (back to normal mode).
+/// レビューポップアップからカスタムプロンプトを開き、Escを押すと親ポップアップに戻り、
+/// 再度Escを押すとすべてのパネルが閉じる（通常モードに戻る）。
 #[tokio::test]
 async fn review_custom_prompt_escape_navigates_back_then_dismisses() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Open the Review presets parent popup.
+    // レビュープリセット親ポップアップを開く。
     chat.open_review_popup();
 
-    // Open the custom prompt submenu (child view) directly.
+    // カスタムプロンプトサブメニュー（子ビュー）を直接開く。
     chat.show_review_custom_prompt();
 
-    // Verify child view is on top.
+    // 子ビューがトップにあることを確認。
     let header = render_bottom_first_row(&chat, 60);
     assert!(
         header.contains("Custom review instructions"),
-        "expected custom prompt view header: {header:?}"
+        "カスタムプロンプトビューヘッダーが期待される: {header:?}"
     );
 
-    // Esc once: child view closes, parent (review presets) remains.
+    // Escを1回: 子ビューが閉じ、親（レビュープリセット）は残る。
     chat.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     let header = render_bottom_first_row(&chat, 60);
     assert!(
         header.contains("Select a review preset"),
-        "expected to return to parent review popup: {header:?}"
+        "親レビューポップアップに戻ることが期待される: {header:?}"
     );
 
-    // Esc again: parent closes; back to normal composer state.
+    // 再度Esc: 親が閉じ、通常コンポーザー状態に戻る。
     chat.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     assert!(
         chat.is_normal_backtrack_mode(),
-        "expected to be back in normal composer mode"
+        "通常コンポーザーモードに戻ることが期待される"
     );
 }
 
-/// Opening base-branch picker from the review popup, pressing Esc returns to the
-/// parent popup, pressing Esc again dismisses all panels (back to normal mode).
+/// レビューポップアップからベースブランチピッカーを開き、Escを押すと親ポップアップに戻り、
+/// 再度Escを押すとすべてのパネルが閉じる（通常モードに戻る）。
 #[tokio::test]
 async fn review_branch_picker_escape_navigates_back_then_dismisses() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Open the Review presets parent popup.
+    // レビュープリセット親ポップアップを開く。
     chat.open_review_popup();
 
-    // Open the branch picker submenu (child view). Using a temp cwd with no git repo is fine.
+    // ブランチピッカーサブメニュー（子ビュー）を開く。gitリポジトリなしの一時cwdで問題なし。
     let cwd = std::env::temp_dir();
     chat.show_review_branch_picker(&cwd).await;
 
-    // Verify child view header.
+    // 子ビューヘッダーを確認。
     let header = render_bottom_first_row(&chat, 60);
     assert!(
         header.contains("Select a base branch"),
-        "expected branch picker header: {header:?}"
+        "ブランチピッカーヘッダーが期待される: {header:?}"
     );
 
-    // Esc once: child view closes, parent remains.
+    // Escを1回: 子ビューが閉じ、親は残る。
     chat.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     let header = render_bottom_first_row(&chat, 60);
     assert!(
         header.contains("Select a review preset"),
-        "expected to return to parent review popup: {header:?}"
+        "親レビューポップアップに戻ることが期待される: {header:?}"
     );
 
-    // Esc again: parent closes; back to normal composer state.
+    // 再度Esc: 親が閉じ、通常コンポーザー状態に戻る。
     chat.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     assert!(
         chat.is_normal_backtrack_mode(),
-        "expected to be back in normal composer mode"
+        "通常コンポーザーモードに戻ることが期待される"
     );
 }
 
@@ -1919,7 +1918,7 @@ async fn single_reasoning_option_skips_selection() {
 async fn feedback_selection_popup_snapshot() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Open the feedback category selection popup via slash command.
+    // スラッシュコマンドでフィードバックカテゴリ選択ポップアップを開く。
     chat.dispatch_command(SlashCommand::Feedback);
 
     let popup = render_bottom_popup(&chat, 80);
@@ -1930,7 +1929,7 @@ async fn feedback_selection_popup_snapshot() {
 async fn feedback_upload_consent_popup_snapshot() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Open the consent popup directly for a chosen category.
+    // 選択されたカテゴリの同意ポップアップを直接開く。
     chat.open_feedback_consent(crate::app_event::FeedbackCategory::Bug);
 
     let popup = render_bottom_popup(&chat, 80);
@@ -1959,28 +1958,28 @@ async fn reasoning_popup_escape_returns_to_model_popup() {
 async fn exec_history_extends_previous_when_consecutive() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // 1) Start "ls -la" (List)
+    // 1) "ls -la"を開始 (List)
     let begin_ls = begin_exec(&mut chat, "call-ls", "ls -la");
     assert_snapshot!("exploring_step1_start_ls", active_blob(&chat));
 
-    // 2) Finish "ls -la"
+    // 2) "ls -la"を完了
     end_exec(&mut chat, begin_ls, "", "", 0);
     assert_snapshot!("exploring_step2_finish_ls", active_blob(&chat));
 
-    // 3) Start "cat foo.txt" (Read)
+    // 3) "cat foo.txt"を開始 (Read)
     let begin_cat_foo = begin_exec(&mut chat, "call-cat-foo", "cat foo.txt");
     assert_snapshot!("exploring_step3_start_cat_foo", active_blob(&chat));
 
-    // 4) Complete "cat foo.txt"
+    // 4) "cat foo.txt"を完了
     end_exec(&mut chat, begin_cat_foo, "hello from foo", "", 0);
     assert_snapshot!("exploring_step4_finish_cat_foo", active_blob(&chat));
 
-    // 5) Start & complete "sed -n 100,200p foo.txt" (treated as Read of foo.txt)
+    // 5) "sed -n 100,200p foo.txt"を開始して完了 (foo.txtのReadとして扱われる)
     let begin_sed_range = begin_exec(&mut chat, "call-sed-range", "sed -n 100,200p foo.txt");
     end_exec(&mut chat, begin_sed_range, "chunk", "", 0);
     assert_snapshot!("exploring_step5_finish_sed_range", active_blob(&chat));
 
-    // 6) Start & complete "cat bar.txt"
+    // 6) "cat bar.txt"を開始して完了
     let begin_cat_bar = begin_exec(&mut chat, "call-cat-bar", "cat bar.txt");
     end_exec(&mut chat, begin_cat_bar, "hello from bar", "", 0);
     assert_snapshot!("exploring_step6_finish_cat_bar", active_blob(&chat));
@@ -2002,7 +2001,7 @@ async fn user_shell_command_renders_output_not_exploring() {
     assert_eq!(
         cells.len(),
         1,
-        "expected a single history cell for the user command"
+        "ユーザーコマンド用の単一履歴セルが期待される"
     );
     let blob = lines_to_single_string(cells.first().unwrap());
     assert_snapshot!("user_shell_ls_output", blob);
@@ -2010,35 +2009,35 @@ async fn user_shell_command_renders_output_not_exploring() {
 
 #[tokio::test]
 async fn disabled_slash_command_while_task_running_snapshot() {
-    // Build a chat widget and simulate an active task
+    // チャットウィジェットを構築しアクティブタスクをシミュレート
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
     chat.bottom_pane.set_task_running(true);
 
-    // Dispatch a command that is unavailable while a task runs (e.g., /model)
+    // タスク実行中に使用不可なコマンドをディスパッチ（例: /model）
     chat.dispatch_command(SlashCommand::Model);
 
-    // Drain history and snapshot the rendered error line(s)
+    // 履歴をドレインしレンダリングされたエラー行をスナップショット
     let cells = drain_insert_history(&mut rx);
     assert!(
         !cells.is_empty(),
-        "expected an error message history cell to be emitted",
+        "エラーメッセージ履歴セルが発行されるべき",
     );
     let blob = lines_to_single_string(cells.last().unwrap());
     assert_snapshot!(blob);
 }
 
 //
-// Snapshot test: command approval modal
+// スナップショットテスト: コマンド承認モーダル
 //
-// Synthesizes a Codex ExecApprovalRequest event to trigger the approval modal
-// and snapshots the visual output using the ratatui TestBackend.
+// Codex ExecApprovalRequestイベントを合成して承認モーダルをトリガーし、
+// ratatui TestBackendを使用して視覚的出力をスナップショット。
 #[tokio::test]
 async fn approval_modal_exec_snapshot() {
-    // Build a chat widget with manual channels to avoid spawning the agent.
+    // エージェントを生成しないために手動チャンネルでチャットウィジェットを構築。
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
-    // Ensure policy allows surfacing approvals explicitly (not strictly required for direct event).
+    // ポリシーが承認を明示的に表示することを許可していることを確認（直接イベントには厳密には不要）。
     chat.config.approval_policy = Constrained::allow_any(AskForApproval::OnRequest);
-    // Inject an exec approval request to display the approval modal.
+    // 承認モーダルを表示するためにexec承認リクエストを注入。
     let ev = ExecApprovalRequestEvent {
         call_id: "call-approve-cmd".into(),
         turn_id: "turn-approve-cmd".into(),
@@ -2058,8 +2057,8 @@ async fn approval_modal_exec_snapshot() {
         id: "sub-approve".into(),
         msg: EventMsg::ExecApprovalRequest(ev),
     });
-    // Render to a fixed-size test terminal and snapshot.
-    // Call desired_height first and use that exact height for rendering.
+    // 固定サイズのテストターミナルにレンダリングしスナップショット。
+    // まずdesired_heightを呼び出しその正確な高さでレンダリング。
     let width = 100;
     let height = chat.desired_height(width);
     let mut terminal =
@@ -2085,8 +2084,8 @@ async fn approval_modal_exec_snapshot() {
     );
 }
 
-// Snapshot test: command approval modal without a reason
-// Ensures spacing looks correct when no reason text is provided.
+// スナップショットテスト: 理由なしのコマンド承認モーダル
+// 理由テキストが提供されない場合にスペーシングが正しく見えることを確認。
 #[tokio::test]
 async fn approval_modal_exec_without_reason_snapshot() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
@@ -2124,13 +2123,13 @@ async fn approval_modal_exec_without_reason_snapshot() {
     );
 }
 
-// Snapshot test: patch approval modal
+// スナップショットテスト: パッチ承認モーダル
 #[tokio::test]
 async fn approval_modal_patch_snapshot() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
     chat.config.approval_policy = Constrained::allow_any(AskForApproval::OnRequest);
 
-    // Build a small changeset and a reason/grant_root to exercise the prompt text.
+    // プロンプトテキストを確認するために小さな変更セットとreason/grant_rootを構築。
     let mut changes = HashMap::new();
     changes.insert(
         PathBuf::from("README.md"),
@@ -2150,7 +2149,7 @@ async fn approval_modal_patch_snapshot() {
         msg: EventMsg::ApplyPatchApprovalRequest(ev),
     });
 
-    // Render at the widget's desired height and snapshot.
+    // ウィジェットのdesired_heightでレンダリングしスナップショット。
     let height = chat.desired_height(80);
     let mut terminal =
         ratatui::Terminal::new(VT100Backend::new(80, height)).expect("create terminal");
@@ -2168,17 +2167,17 @@ async fn approval_modal_patch_snapshot() {
 async fn interrupt_restores_queued_messages_into_composer() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(None).await;
 
-    // Simulate a running task to enable queuing of user inputs.
+    // ユーザー入力のキューイングを有効にするために実行中タスクをシミュレート。
     chat.bottom_pane.set_task_running(true);
 
-    // Queue two user messages while the task is running.
+    // タスク実行中に2つのユーザーメッセージをキュー。
     chat.queued_user_messages
         .push_back(UserMessage::from("first queued".to_string()));
     chat.queued_user_messages
         .push_back(UserMessage::from("second queued".to_string()));
     chat.refresh_queued_user_messages();
 
-    // Deliver a TurnAborted event with Interrupted reason (as if Esc was pressed).
+    // Interrupted理由でTurnAbortedイベントを配信（Escが押されたかのように）。
     chat.handle_codex_event(Event {
         id: "turn-1".into(),
         msg: EventMsg::TurnAborted(codex_core::protocol::TurnAbortedEvent {
@@ -2186,20 +2185,20 @@ async fn interrupt_restores_queued_messages_into_composer() {
         }),
     });
 
-    // Composer should now contain the queued messages joined by newlines, in order.
+    // コンポーザーはキュー済みメッセージを順番に改行で結合して含むべき。
     assert_eq!(
         chat.bottom_pane.composer_text(),
         "first queued\nsecond queued"
     );
 
-    // Queue should be cleared and no new user input should have been auto-submitted.
+    // キューはクリアされ、新しいユーザー入力は自動送信されるべきでない。
     assert!(chat.queued_user_messages.is_empty());
     assert!(
         op_rx.try_recv().is_err(),
-        "unexpected outbound op after interrupt"
+        "割り込み後に予期しない送信opがあった"
     );
 
-    // Drain rx to avoid unused warnings.
+    // unused警告を避けるためにrxをドレイン。
     let _ = drain_insert_history(&mut rx);
 }
 
@@ -2231,14 +2230,14 @@ async fn interrupt_prepends_queued_messages_before_existing_composer_text() {
     assert!(chat.queued_user_messages.is_empty());
     assert!(
         op_rx.try_recv().is_err(),
-        "unexpected outbound op after interrupt"
+        "割り込み後に予期しない送信opがあった"
     );
 
     let _ = drain_insert_history(&mut rx);
 }
 
-// Snapshot test: ChatWidget at very small heights (idle)
-// Ensures overall layout behaves when terminal height is extremely constrained.
+// スナップショットテスト: 非常に小さな高さでのChatWidget（アイドル）
+// ターミナル高さが非常に制約されている場合の全体レイアウトの動作を確認。
 #[tokio::test]
 async fn ui_snapshots_small_heights_idle() {
     use ratatui::Terminal;
@@ -2254,14 +2253,14 @@ async fn ui_snapshots_small_heights_idle() {
     }
 }
 
-// Snapshot test: ChatWidget at very small heights (task running)
-// Validates how status + composer are presented within tight space.
+// スナップショットテスト: 非常に小さな高さでのChatWidget（タスク実行中）
+// 狭いスペース内でステータス+コンポーザーがどのように表示されるかを検証。
 #[tokio::test]
 async fn ui_snapshots_small_heights_task_running() {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
-    // Activate status line
+    // ステータス行をアクティベート
     chat.handle_codex_event(Event {
         id: "task-1".into(),
         msg: EventMsg::TaskStarted(TaskStartedEvent {
@@ -2284,22 +2283,22 @@ async fn ui_snapshots_small_heights_task_running() {
     }
 }
 
-// Snapshot test: status widget + approval modal active together
-// The modal takes precedence visually; this captures the layout with a running
-// task (status indicator active) while an approval request is shown.
+// スナップショットテスト: ステータスウィジェット+承認モーダルが同時にアクティブ
+// モーダルが視覚的に優先される; 承認リクエストが表示されている間、
+// 実行中タスク（ステータスインジケーターがアクティブ）のレイアウトをキャプチャ。
 #[tokio::test]
 async fn status_widget_and_approval_modal_snapshot() {
     use codex_core::protocol::ExecApprovalRequestEvent;
 
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
-    // Begin a running task so the status indicator would be active.
+    // ステータスインジケーターがアクティブになるよう実行中タスクを開始。
     chat.handle_codex_event(Event {
         id: "task-1".into(),
         msg: EventMsg::TaskStarted(TaskStartedEvent {
             model_context_window: None,
         }),
     });
-    // Provide a deterministic header for the status line.
+    // ステータス行の決定論的ヘッダーを提供。
     chat.handle_codex_event(Event {
         id: "task-1".into(),
         msg: EventMsg::AgentReasoningDelta(AgentReasoningDeltaEvent {
@@ -2307,7 +2306,7 @@ async fn status_widget_and_approval_modal_snapshot() {
         }),
     });
 
-    // Now show an approval modal (e.g. exec approval).
+    // 承認モーダル（例: exec承認）を表示。
     let ev = ExecApprovalRequestEvent {
         call_id: "call-approve-exec".into(),
         turn_id: "turn-approve-exec".into(),
@@ -2327,7 +2326,7 @@ async fn status_widget_and_approval_modal_snapshot() {
         msg: EventMsg::ExecApprovalRequest(ev),
     });
 
-    // Render at the widget's desired height and snapshot.
+    // ウィジェットの希望高さでレンダリングしてスナップショット。
     let width: u16 = 100;
     let height = chat.desired_height(width);
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height))
@@ -2339,26 +2338,26 @@ async fn status_widget_and_approval_modal_snapshot() {
     assert_snapshot!("status_widget_and_approval_modal", terminal.backend());
 }
 
-// Snapshot test: status widget active (StatusIndicatorView)
-// Ensures the VT100 rendering of the status indicator is stable when active.
+// スナップショットテスト: ステータスウィジェットがアクティブ（StatusIndicatorView）
+// ステータスインジケーターがアクティブ時のVT100レンダリングが安定していることを確認。
 #[tokio::test]
 async fn status_widget_active_snapshot() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
-    // Activate the status indicator by simulating a task start.
+    // タスク開始をシミュレートしてステータスインジケーターをアクティブ化。
     chat.handle_codex_event(Event {
         id: "task-1".into(),
         msg: EventMsg::TaskStarted(TaskStartedEvent {
             model_context_window: None,
         }),
     });
-    // Provide a deterministic header via a bold reasoning chunk.
+    // 太字のリーズニングチャンク経由で決定論的ヘッダーを提供。
     chat.handle_codex_event(Event {
         id: "task-1".into(),
         msg: EventMsg::AgentReasoningDelta(AgentReasoningDeltaEvent {
             delta: "**Analyzing**".into(),
         }),
     });
-    // Render and snapshot.
+    // レンダリングとスナップショット。
     let height = chat.desired_height(80);
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, height))
         .expect("create terminal");
@@ -2410,7 +2409,7 @@ async fn background_event_updates_status_header() {
 async fn apply_patch_events_emit_history_cells() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // 1) Approval request -> proposed patch summary cell
+    // 1) 承認リクエスト -> 提案パッチサマリーセル
     let mut changes = HashMap::new();
     changes.insert(
         PathBuf::from("foo.txt"),
@@ -2451,7 +2450,7 @@ async fn apply_patch_events_emit_history_cells() {
     }
     assert!(saw_summary, "expected approval modal to show diff summary");
 
-    // 2) Begin apply -> per-file apply block cell (no global header)
+    // 2) 適用開始 -> ファイル単位の適用ブロックセル（グローバルヘッダーなし）
     let mut changes2 = HashMap::new();
     changes2.insert(
         PathBuf::from("foo.txt"),
@@ -2477,7 +2476,7 @@ async fn apply_patch_events_emit_history_cells() {
         "expected single-file header with filename (Added/Edited): {blob:?}"
     );
 
-    // 3) End apply success -> success cell
+    // 3) 適用終了成功 -> 成功セル
     let mut end_changes = HashMap::new();
     end_changes.insert(
         PathBuf::from("foo.txt"),
@@ -2609,7 +2608,7 @@ async fn apply_patch_manual_flow_snapshot() {
 #[tokio::test]
 async fn apply_patch_approval_sends_op_with_submission_id() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
-    // Simulate receiving an approval request with a distinct submission id and call id
+    // 別個のサブミッションIDとコールIDを持つ承認リクエストの受信をシミュレート
     let mut changes = HashMap::new();
     changes.insert(
         PathBuf::from("file.rs"),
@@ -2629,10 +2628,10 @@ async fn apply_patch_approval_sends_op_with_submission_id() {
         msg: EventMsg::ApplyPatchApprovalRequest(ev),
     });
 
-    // Approve via key press 'y'
+    // 'y'キー押下で承認
     chat.handle_key_event(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE));
 
-    // Expect a CodexOp with PatchApproval carrying the submission id, not call id
+    // コールIDではなくサブミッションIDを持つPatchApproval付きCodexOpを期待
     let mut found = false;
     while let Ok(app_ev) = rx.try_recv() {
         if let AppEvent::CodexOp(Op::PatchApproval { id, decision }) = app_ev {
@@ -2649,7 +2648,7 @@ async fn apply_patch_approval_sends_op_with_submission_id() {
 async fn apply_patch_full_flow_integration_like() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(None).await;
 
-    // 1) Backend requests approval
+    // 1) バックエンドが承認をリクエスト
     let mut changes = HashMap::new();
     changes.insert(
         PathBuf::from("pkg.rs"),
@@ -2666,7 +2665,7 @@ async fn apply_patch_full_flow_integration_like() {
         }),
     });
 
-    // 2) User approves via 'y' and App receives a CodexOp
+    // 2) ユーザーが'y'で承認し、AppがCodexOpを受信
     chat.handle_key_event(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE));
     let mut maybe_op: Option<Op> = None;
     while let Ok(app_ev) = rx.try_recv() {
@@ -2677,7 +2676,7 @@ async fn apply_patch_full_flow_integration_like() {
     }
     let op = maybe_op.expect("expected CodexOp after key press");
 
-    // 3) App forwards to widget.submit_op, which pushes onto codex_op_tx
+    // 3) Appがwidget.submit_opに転送し、codex_op_txにプッシュ
     chat.submit_op(op);
     let forwarded = op_rx
         .try_recv()
@@ -2690,7 +2689,7 @@ async fn apply_patch_full_flow_integration_like() {
         other => panic!("unexpected op forwarded: {other:?}"),
     }
 
-    // 4) Simulate patch begin/end events from backend; ensure history cells are emitted
+    // 4) バックエンドからのパッチ開始/終了イベントをシミュレート; 履歴セルが発行されることを確認
     let mut changes2 = HashMap::new();
     changes2.insert(
         PathBuf::from("pkg.rs"),
@@ -2726,10 +2725,10 @@ async fn apply_patch_full_flow_integration_like() {
 #[tokio::test]
 async fn apply_patch_untrusted_shows_approval_modal() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(None).await;
-    // Ensure approval policy is untrusted (OnRequest)
+    // 承認ポリシーがuntrusted（OnRequest）であることを確認
     chat.config.approval_policy = Constrained::allow_any(AskForApproval::OnRequest);
 
-    // Simulate a patch approval request from backend
+    // バックエンドからのパッチ承認リクエストをシミュレート
     let mut changes = HashMap::new();
     changes.insert(
         PathBuf::from("a.rs"),
@@ -2746,7 +2745,7 @@ async fn apply_patch_untrusted_shows_approval_modal() {
         }),
     });
 
-    // Render and ensure the approval modal title is present
+    // レンダリングして承認モーダルタイトルが存在することを確認
     let area = Rect::new(0, 0, 80, 12);
     let mut buf = Buffer::empty(area);
     chat.render(area, &mut buf);
@@ -2772,15 +2771,15 @@ async fn apply_patch_untrusted_shows_approval_modal() {
 async fn apply_patch_request_shows_diff_summary() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Ensure we are in OnRequest so an approval is surfaced
+    // 承認が表示されるようOnRequestモードであることを確認
     chat.config.approval_policy = Constrained::allow_any(AskForApproval::OnRequest);
 
-    // Simulate backend asking to apply a patch adding two lines to README.md
+    // バックエンドがREADME.mdに2行追加するパッチ適用をリクエストするシミュレート
     let mut changes = HashMap::new();
     changes.insert(
         PathBuf::from("README.md"),
         FileChange::Add {
-            // Two lines (no trailing empty line counted)
+            // 2行（末尾の空行はカウントしない）
             content: "line one\nline two\n".into(),
         },
     );
@@ -2795,7 +2794,7 @@ async fn apply_patch_request_shows_diff_summary() {
         }),
     });
 
-    // No history entries yet; the modal should contain the diff summary
+    // まだ履歴エントリなし; モーダルにdiffサマリーが含まれるべき
     let cells = drain_insert_history(&mut rx);
     assert!(
         cells.is_empty(),
@@ -2956,7 +2955,7 @@ async fn stream_recovery_restores_previous_status_header() {
 async fn multiple_agent_messages_in_single_turn_emit_multiple_headers() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Begin turn
+    // ターン開始
     chat.handle_codex_event(Event {
         id: "s1".into(),
         msg: EventMsg::TaskStarted(TaskStartedEvent {
@@ -2964,7 +2963,7 @@ async fn multiple_agent_messages_in_single_turn_emit_multiple_headers() {
         }),
     });
 
-    // First finalized assistant message
+    // 最初の確定アシスタントメッセージ
     chat.handle_codex_event(Event {
         id: "s1".into(),
         msg: EventMsg::AgentMessage(AgentMessageEvent {
@@ -2972,7 +2971,7 @@ async fn multiple_agent_messages_in_single_turn_emit_multiple_headers() {
         }),
     });
 
-    // Second finalized assistant message in the same turn
+    // 同一ターン内の2番目の確定アシスタントメッセージ
     chat.handle_codex_event(Event {
         id: "s1".into(),
         msg: EventMsg::AgentMessage(AgentMessageEvent {
@@ -2980,7 +2979,7 @@ async fn multiple_agent_messages_in_single_turn_emit_multiple_headers() {
         }),
     });
 
-    // End turn
+    // ターン終了
     chat.handle_codex_event(Event {
         id: "s1".into(),
         msg: EventMsg::TaskComplete(TaskCompleteEvent {
@@ -3010,7 +3009,7 @@ async fn multiple_agent_messages_in_single_turn_emit_multiple_headers() {
 async fn final_reasoning_then_message_without_deltas_are_rendered() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // No deltas; only final reasoning followed by final message.
+    // デルタなし; 最終リーズニングの後に最終メッセージのみ。
     chat.handle_codex_event(Event {
         id: "s1".into(),
         msg: EventMsg::AgentReasoning(AgentReasoningEvent {
@@ -3024,7 +3023,7 @@ async fn final_reasoning_then_message_without_deltas_are_rendered() {
         }),
     });
 
-    // Drain history and snapshot the combined visible content.
+    // 履歴をドレインして結合された可視コンテンツのスナップショット。
     let cells = drain_insert_history(&mut rx);
     let combined = cells
         .iter()
@@ -3037,7 +3036,7 @@ async fn final_reasoning_then_message_without_deltas_are_rendered() {
 async fn deltas_then_same_final_message_are_rendered_snapshot() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Stream some reasoning deltas first.
+    // まずリーズニングデルタをストリーム。
     chat.handle_codex_event(Event {
         id: "s1".into(),
         msg: EventMsg::AgentReasoningDelta(AgentReasoningDeltaEvent {
@@ -3063,7 +3062,7 @@ async fn deltas_then_same_final_message_are_rendered_snapshot() {
         }),
     });
 
-    // Then stream answer deltas, followed by the exact same final message.
+    // 次に回答デルタをストリームし、全く同じ最終メッセージを続ける。
     chat.handle_codex_event(Event {
         id: "s1".into(),
         msg: EventMsg::AgentMessageDelta(AgentMessageDeltaEvent {
@@ -3084,8 +3083,8 @@ async fn deltas_then_same_final_message_are_rendered_snapshot() {
         }),
     });
 
-    // Snapshot the combined visible content to ensure we render as expected
-    // when deltas are followed by the identical final message.
+    // デルタの後に同一の最終メッセージが続く場合に期待通りレンダリングされることを
+    // 確認するため、結合された可視コンテンツのスナップショット。
     let cells = drain_insert_history(&mut rx);
     let combined = cells
         .iter()
@@ -3094,9 +3093,9 @@ async fn deltas_then_same_final_message_are_rendered_snapshot() {
     assert_snapshot!(combined);
 }
 
-// Combined visual snapshot using vt100 for history + direct buffer overlay for UI.
-// This renders the final visual as seen in a terminal: history above, then a blank line,
-// then the exec block, another blank line, the status line, a blank line, and the composer.
+// 履歴用vt100 + UI用直接バッファオーバーレイを使用した結合ビジュアルスナップショット。
+// ターミナルで見える最終ビジュアルをレンダリング: 上に履歴、空行、
+// 次にexecブロック、空行、ステータス行、空行、コンポーザー。
 #[tokio::test]
 async fn chatwidget_exec_and_status_layout_vt100_snapshot() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
@@ -3188,12 +3187,12 @@ async fn chatwidget_exec_and_status_layout_vt100_snapshot() {
     assert_snapshot!(term.backend().vt100().screen().contents());
 }
 
-// E2E vt100 snapshot for complex markdown with indented and nested fenced code blocks
+// インデントおよびネストされたフェンスコードブロックを持つ複雑なMarkdown用E2E vt100スナップショット
 #[tokio::test]
 async fn chatwidget_markdown_code_blocks_vt100_snapshot() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
 
-    // Simulate a final agent message via streaming deltas instead of a single message
+    // 単一メッセージの代わりにストリーミングデルタ経由で最終エージェントメッセージをシミュレート
 
     chat.handle_codex_event(Event {
         id: "t1".into(),
@@ -3201,15 +3200,15 @@ async fn chatwidget_markdown_code_blocks_vt100_snapshot() {
             model_context_window: None,
         }),
     });
-    // Build a vt100 visual from the history insertions only (no UI overlay)
+    // 履歴挿入のみからvt100ビジュアルを構築（UIオーバーレイなし）
     let width: u16 = 80;
     let height: u16 = 50;
     let backend = VT100Backend::new(width, height);
     let mut term = crate::custom_terminal::Terminal::with_options(backend).expect("terminal");
-    // Place viewport at the last line so that history lines insert above it
+    // ビューポートを最終行に配置して履歴行がその上に挿入されるようにする
     term.set_viewport_area(Rect::new(0, height - 1, width, 1));
 
-    // Simulate streaming via AgentMessageDelta in 2-character chunks (no final AgentMessage).
+    // 2文字チャンクでAgentMessageDelta経由のストリーミングをシミュレート（最終AgentMessageなし）。
     let source: &str = r#"
 
     -- Indented code block (4 spaces)
@@ -3247,7 +3246,7 @@ printf 'fenced within fenced\n'
             id: "t1".into(),
             msg: EventMsg::AgentMessageDelta(AgentMessageDeltaEvent { delta }),
         });
-        // Drive commit ticks and drain emitted history lines into the vt100 buffer.
+        // コミットティックを駆動し、発行された履歴行をvt100バッファにドレイン。
         loop {
             chat.on_commit_tick();
             let mut inserted_any = false;
@@ -3265,7 +3264,7 @@ printf 'fenced within fenced\n'
         }
     }
 
-    // Finalize the stream without sending a final AgentMessage, to flush any tail.
+    // 末尾をフラッシュするため、最終AgentMessageを送信せずにストリームを確定。
     chat.handle_codex_event(Event {
         id: "t1".into(),
         msg: EventMsg::TaskComplete(TaskCompleteEvent {

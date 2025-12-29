@@ -46,46 +46,46 @@ use ratatui::widgets::WidgetRef;
 
 #[derive(Debug, Hash)]
 pub struct Frame<'a> {
-    /// Where should the cursor be after drawing this frame?
+    /// このフレームの描画後にカーソルをどこに配置すべきか？
     ///
-    /// If `None`, the cursor is hidden and its position is controlled by the backend. If `Some((x,
-    /// y))`, the cursor is shown and placed at `(x, y)` after the call to `Terminal::draw()`.
+    /// `None`の場合、カーソルは非表示で位置はバックエンドによって制御される。
+    /// `Some((x, y))`の場合、`Terminal::draw()`呼び出し後にカーソルは表示され`(x, y)`に配置される。
     pub(crate) cursor_position: Option<Position>,
 
-    /// The area of the viewport
+    /// ビューポートの領域
     pub(crate) viewport_area: Rect,
 
-    /// The buffer that is used to draw the current frame
+    /// 現在のフレームを描画するために使用されるバッファ
     pub(crate) buffer: &'a mut Buffer,
 }
 
 impl Frame<'_> {
-    /// The area of the current frame
+    /// 現在のフレームの領域
     ///
-    /// This is guaranteed not to change during rendering, so may be called multiple times.
+    /// レンダリング中に変更されないことが保証されているため、複数回呼び出し可能。
     ///
-    /// If your app listens for a resize event from the backend, it should ignore the values from
-    /// the event for any calculations that are used to render the current frame and use this value
-    /// instead as this is the area of the buffer that is used to render the current frame.
+    /// アプリがバックエンドからのリサイズイベントをリッスンしている場合、
+    /// 現在のフレームのレンダリングに使用される計算にはイベントからの値を無視し、
+    /// 代わりにこの値を使用すべき（これが現在のフレームのレンダリングに使用されるバッファの領域）。
     pub const fn area(&self) -> Rect {
         self.viewport_area
     }
 
-    /// Render a [`WidgetRef`] to the current buffer using [`WidgetRef::render_ref`].
+    /// [`WidgetRef::render_ref`]を使用して[`WidgetRef`]を現在のバッファにレンダリング。
     ///
-    /// Usually the area argument is the size of the current frame or a sub-area of the current
-    /// frame (which can be obtained using [`Layout`] to split the total area).
+    /// 通常、area引数は現在のフレームのサイズまたは現在のフレームのサブ領域
+    /// （[`Layout`]を使用して全体領域を分割して取得可能）。
     #[allow(clippy::needless_pass_by_value)]
     pub fn render_widget_ref<W: WidgetRef>(&mut self, widget: W, area: Rect) {
         widget.render_ref(area, self.buffer);
     }
 
-    /// After drawing this frame, make the cursor visible and put it at the specified (x, y)
-    /// coordinates. If this method is not called, the cursor will be hidden.
+    /// このフレームの描画後、カーソルを表示し指定された(x, y)座標に配置。
+    /// このメソッドが呼び出されない場合、カーソルは非表示になる。
     ///
-    /// Note that this will interfere with calls to [`Terminal::hide_cursor`],
-    /// [`Terminal::show_cursor`], and [`Terminal::set_cursor_position`]. Pick one of the APIs and
-    /// stick with it.
+    /// これは[`Terminal::hide_cursor`]、[`Terminal::show_cursor`]、
+    /// [`Terminal::set_cursor_position`]の呼び出しと干渉することに注意。
+    /// APIの1つを選択して一貫して使用すること。
     ///
     /// [`Terminal::hide_cursor`]: crate::Terminal::hide_cursor
     /// [`Terminal::show_cursor`]: crate::Terminal::show_cursor
@@ -94,7 +94,7 @@ impl Frame<'_> {
         self.cursor_position = Some(position.into());
     }
 
-    /// Gets the buffer that this `Frame` draws into as a mutable reference.
+    /// この`Frame`が描画するバッファへの可変参照を取得。
     pub fn buffer_mut(&mut self) -> &mut Buffer {
         self.buffer
     }
@@ -105,21 +105,21 @@ pub struct Terminal<B>
 where
     B: Backend + Write,
 {
-    /// The backend used to interface with the terminal
+    /// ターミナルとのインターフェースに使用されるバックエンド
     backend: B,
-    /// Holds the results of the current and previous draw calls. The two are compared at the end
-    /// of each draw pass to output the necessary updates to the terminal
+    /// 現在と前回の描画呼び出しの結果を保持。各描画パスの終了時に2つを比較し、
+    /// ターミナルへの必要な更新を出力
     buffers: [Buffer; 2],
-    /// Index of the current buffer in the previous array
+    /// 前の配列における現在のバッファのインデックス
     current: usize,
-    /// Whether the cursor is currently hidden
+    /// カーソルが現在非表示かどうか
     pub hidden_cursor: bool,
-    /// Area of the viewport
+    /// ビューポートの領域
     pub viewport_area: Rect,
-    /// Last known size of the terminal. Used to detect if the internal buffers have to be resized.
+    /// ターミナルの最後に知られたサイズ。内部バッファのリサイズが必要かどうかの検出に使用。
     pub last_known_screen_size: Size,
-    /// Last known position of the cursor. Used to find the new area when the viewport is inlined
-    /// and the terminal resized.
+    /// カーソルの最後に知られた位置。ビューポートがインライン化されターミナルが
+    /// リサイズされた時に新しい領域を見つけるために使用。
     pub last_known_cursor_pos: Position,
 }
 
@@ -130,7 +130,7 @@ where
 {
     #[allow(clippy::print_stderr)]
     fn drop(&mut self) {
-        // Attempt to restore the cursor state
+        // カーソル状態の復元を試行
         if self.hidden_cursor
             && let Err(err) = self.show_cursor()
         {
@@ -144,7 +144,7 @@ where
     B: Backend,
     B: Write,
 {
-    /// Creates a new [`Terminal`] with the given [`Backend`] and [`TerminalOptions`].
+    /// 指定された[`Backend`]と[`TerminalOptions`]で新しい[`Terminal`]を作成。
     pub fn with_options(mut backend: B) -> io::Result<Self> {
         let screen_size = backend.size()?;
         let cursor_pos = backend.get_cursor_position()?;
@@ -159,7 +159,7 @@ where
         })
     }
 
-    /// Get a Frame object which provides a consistent view into the terminal state for rendering.
+    /// レンダリング用にターミナル状態への一貫したビューを提供するFrameオブジェクトを取得。
     pub fn get_frame(&mut self) -> Frame<'_> {
         Frame {
             cursor_position: None,
@@ -168,38 +168,37 @@ where
         }
     }
 
-    /// Gets the current buffer as a reference.
+    /// 現在のバッファを参照として取得。
     fn current_buffer(&self) -> &Buffer {
         &self.buffers[self.current]
     }
 
-    /// Gets the current buffer as a mutable reference.
+    /// 現在のバッファを可変参照として取得。
     fn current_buffer_mut(&mut self) -> &mut Buffer {
         &mut self.buffers[self.current]
     }
 
-    /// Gets the previous buffer as a reference.
+    /// 前のバッファを参照として取得。
     fn previous_buffer(&self) -> &Buffer {
         &self.buffers[1 - self.current]
     }
 
-    /// Gets the previous buffer as a mutable reference.
+    /// 前のバッファを可変参照として取得。
     fn previous_buffer_mut(&mut self) -> &mut Buffer {
         &mut self.buffers[1 - self.current]
     }
 
-    /// Gets the backend
+    /// バックエンドを取得
     pub const fn backend(&self) -> &B {
         &self.backend
     }
 
-    /// Gets the backend as a mutable reference
+    /// バックエンドを可変参照として取得
     pub fn backend_mut(&mut self) -> &mut B {
         &mut self.backend
     }
 
-    /// Obtains a difference between the previous and the current buffer and passes it to the
-    /// current backend for drawing.
+    /// 前のバッファと現在のバッファの差分を取得し、描画のために現在のバックエンドに渡す。
     pub fn flush(&mut self) -> io::Result<()> {
         let updates = diff_buffers(self.previous_buffer(), self.current_buffer());
         let last_put_command = updates.iter().rfind(|command| command.is_put());
@@ -209,23 +208,23 @@ where
         draw(&mut self.backend, updates.into_iter())
     }
 
-    /// Updates the Terminal so that internal buffers match the requested area.
+    /// 内部バッファが要求された領域に一致するようにTerminalを更新。
     ///
-    /// Requested area will be saved to remain consistent when rendering. This leads to a full clear
-    /// of the screen.
+    /// 要求された領域はレンダリング時の一貫性を保つために保存される。
+    /// これにより画面全体がクリアされる。
     pub fn resize(&mut self, screen_size: Size) -> io::Result<()> {
         self.last_known_screen_size = screen_size;
         Ok(())
     }
 
-    /// Sets the viewport area.
+    /// ビューポート領域を設定。
     pub fn set_viewport_area(&mut self, area: Rect) {
         self.current_buffer_mut().resize(area);
         self.previous_buffer_mut().resize(area);
         self.viewport_area = area;
     }
 
-    /// Queries the backend for size and resizes if it doesn't match the previous size.
+    /// バックエンドにサイズを問い合わせ、前回のサイズと一致しない場合はリサイズ。
     pub fn autoresize(&mut self) -> io::Result<()> {
         let screen_size = self.size()?;
         if screen_size != self.last_known_screen_size {
@@ -234,29 +233,28 @@ where
         Ok(())
     }
 
-    /// Draws a single frame to the terminal.
+    /// 単一のフレームをターミナルに描画。
     ///
-    /// Returns a [`CompletedFrame`] if successful, otherwise a [`std::io::Error`].
+    /// 成功した場合は[`CompletedFrame`]を返し、それ以外は[`std::io::Error`]を返す。
     ///
-    /// If the render callback passed to this method can fail, use [`try_draw`] instead.
+    /// このメソッドに渡されるレンダーコールバックが失敗する可能性がある場合は、代わりに[`try_draw`]を使用。
     ///
-    /// Applications should call `draw` or [`try_draw`] in a loop to continuously render the
-    /// terminal. These methods are the main entry points for drawing to the terminal.
+    /// アプリケーションはターミナルを継続的にレンダリングするためにループで`draw`または
+    /// [`try_draw`]を呼び出すべき。これらのメソッドはターミナルへの描画の主要なエントリポイント。
     ///
     /// [`try_draw`]: Terminal::try_draw
     ///
-    /// This method will:
+    /// このメソッドは:
     ///
-    /// - autoresize the terminal if necessary
-    /// - call the render callback, passing it a [`Frame`] reference to render to
-    /// - flush the current internal state by copying the current buffer to the backend
-    /// - move the cursor to the last known position if it was set during the rendering closure
+    /// - 必要に応じてターミナルを自動リサイズ
+    /// - レンダーコールバックを呼び出し、レンダリング用の[`Frame`]参照を渡す
+    /// - 現在のバッファをバックエンドにコピーして現在の内部状態をフラッシュ
+    /// - レンダリングクロージャ中に設定されていた場合、カーソルを最後に知られた位置に移動
     ///
-    /// The render callback should fully render the entire frame when called, including areas that
-    /// are unchanged from the previous frame. This is because each frame is compared to the
-    /// previous frame to determine what has changed, and only the changes are written to the
-    /// terminal. If the render callback does not fully render the frame, the terminal will not be
-    /// in a consistent state.
+    /// レンダーコールバックは呼び出された時にフレーム全体を完全にレンダリングすべきで、
+    /// 前のフレームから変更されていない領域も含む。これは各フレームが前のフレームと比較されて
+    /// 変更点を判定し、変更点のみがターミナルに書き込まれるため。レンダーコールバックが
+    /// フレームを完全にレンダリングしない場合、ターミナルは一貫性のない状態になる。
     pub fn draw<F>(&mut self, render_callback: F) -> io::Result<()>
     where
         F: FnOnce(&mut Frame),
@@ -267,60 +265,59 @@ where
         })
     }
 
-    /// Tries to draw a single frame to the terminal.
+    /// 単一のフレームをターミナルに描画しようとする。
     ///
-    /// Returns [`Result::Ok`] containing a [`CompletedFrame`] if successful, otherwise
-    /// [`Result::Err`] containing the [`std::io::Error`] that caused the failure.
+    /// 成功した場合は[`CompletedFrame`]を含む[`Result::Ok`]を返し、
+    /// それ以外は失敗の原因となった[`std::io::Error`]を含む[`Result::Err`]を返す。
     ///
-    /// This is the equivalent of [`Terminal::draw`] but the render callback is a function or
-    /// closure that returns a `Result` instead of nothing.
+    /// これは[`Terminal::draw`]と同等だが、レンダーコールバックは何も返さない代わりに
+    /// `Result`を返す関数またはクロージャ。
     ///
-    /// Applications should call `try_draw` or [`draw`] in a loop to continuously render the
-    /// terminal. These methods are the main entry points for drawing to the terminal.
+    /// アプリケーションはターミナルを継続的にレンダリングするためにループで`try_draw`または
+    /// [`draw`]を呼び出すべき。これらのメソッドはターミナルへの描画の主要なエントリポイント。
     ///
     /// [`draw`]: Terminal::draw
     ///
-    /// This method will:
+    /// このメソッドは:
     ///
-    /// - autoresize the terminal if necessary
-    /// - call the render callback, passing it a [`Frame`] reference to render to
-    /// - flush the current internal state by copying the current buffer to the backend
-    /// - move the cursor to the last known position if it was set during the rendering closure
-    /// - return a [`CompletedFrame`] with the current buffer and the area of the terminal
+    /// - 必要に応じてターミナルを自動リサイズ
+    /// - レンダーコールバックを呼び出し、レンダリング用の[`Frame`]参照を渡す
+    /// - 現在のバッファをバックエンドにコピーして現在の内部状態をフラッシュ
+    /// - レンダリングクロージャ中に設定されていた場合、カーソルを最後に知られた位置に移動
+    /// - 現在のバッファとターミナルの領域を含む[`CompletedFrame`]を返す
     ///
-    /// The render callback passed to `try_draw` can return any [`Result`] with an error type that
-    /// can be converted into an [`std::io::Error`] using the [`Into`] trait. This makes it possible
-    /// to use the `?` operator to propagate errors that occur during rendering. If the render
-    /// callback returns an error, the error will be returned from `try_draw` as an
-    /// [`std::io::Error`] and the terminal will not be updated.
+    /// `try_draw`に渡されるレンダーコールバックは、[`Into`]トレイトを使用して
+    /// [`std::io::Error`]に変換可能なエラー型を持つ任意の[`Result`]を返すことができる。
+    /// これによりレンダリング中に発生するエラーを`?`演算子で伝播することが可能。
+    /// レンダーコールバックがエラーを返した場合、エラーは`try_draw`から[`std::io::Error`]として
+    /// 返され、ターミナルは更新されない。
     ///
-    /// The [`CompletedFrame`] returned by this method can be useful for debugging or testing
-    /// purposes, but it is often not used in regular applicationss.
+    /// このメソッドが返す[`CompletedFrame`]はデバッグやテスト目的に有用だが、
+    /// 通常のアプリケーションでは使用されないことが多い。
     ///
-    /// The render callback should fully render the entire frame when called, including areas that
-    /// are unchanged from the previous frame. This is because each frame is compared to the
-    /// previous frame to determine what has changed, and only the changes are written to the
-    /// terminal. If the render function does not fully render the frame, the terminal will not be
-    /// in a consistent state.
+    /// レンダーコールバックは呼び出された時にフレーム全体を完全にレンダリングすべきで、
+    /// 前のフレームから変更されていない領域も含む。これは各フレームが前のフレームと比較されて
+    /// 変更点を判定し、変更点のみがターミナルに書き込まれるため。レンダー関数が
+    /// フレームを完全にレンダリングしない場合、ターミナルは一貫性のない状態になる。
     pub fn try_draw<F, E>(&mut self, render_callback: F) -> io::Result<()>
     where
         F: FnOnce(&mut Frame) -> Result<(), E>,
         E: Into<io::Error>,
     {
-        // Autoresize - otherwise we get glitches if shrinking or potential desync between widgets
-        // and the terminal (if growing), which may OOB.
+        // 自動リサイズ - そうしないと縮小時にグリッチが発生するか、拡大時に
+        // ウィジェットとターミナル間の非同期が発生しOOBになる可能性がある。
         self.autoresize()?;
 
         let mut frame = self.get_frame();
 
         render_callback(&mut frame).map_err(Into::into)?;
 
-        // We can't change the cursor position right away because we have to flush the frame to
-        // stdout first. But we also can't keep the frame around, since it holds a &mut to
-        // Buffer. Thus, we're taking the important data out of the Frame and dropping it.
+        // フレームを先にstdoutにフラッシュする必要があるため、カーソル位置をすぐに変更できない。
+        // しかしフレームはBufferへの&mutを保持しているため、フレームを保持し続けることもできない。
+        // そのためFrameから重要なデータを取り出してドロップする。
         let cursor_position = frame.cursor_position;
 
-        // Draw to stdout
+        // stdoutに描画
         self.flush()?;
 
         match cursor_position {
@@ -338,29 +335,29 @@ where
         Ok(())
     }
 
-    /// Hides the cursor.
+    /// カーソルを非表示にする。
     pub fn hide_cursor(&mut self) -> io::Result<()> {
         self.backend.hide_cursor()?;
         self.hidden_cursor = true;
         Ok(())
     }
 
-    /// Shows the cursor.
+    /// カーソルを表示する。
     pub fn show_cursor(&mut self) -> io::Result<()> {
         self.backend.show_cursor()?;
         self.hidden_cursor = false;
         Ok(())
     }
 
-    /// Gets the current cursor position.
+    /// 現在のカーソル位置を取得。
     ///
-    /// This is the position of the cursor after the last draw call.
+    /// これは最後の描画呼び出し後のカーソル位置。
     #[allow(dead_code)]
     pub fn get_cursor_position(&mut self) -> io::Result<Position> {
         self.backend.get_cursor_position()
     }
 
-    /// Sets the cursor position.
+    /// カーソル位置を設定。
     pub fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> io::Result<()> {
         let position = position.into();
         self.backend.set_cursor_position(position)?;
@@ -368,7 +365,7 @@ where
         Ok(())
     }
 
-    /// Clear the terminal and force a full redraw on the next draw call.
+    /// ターミナルをクリアし、次の描画呼び出しで完全な再描画を強制。
     pub fn clear(&mut self) -> io::Result<()> {
         if self.viewport_area.is_empty() {
             return Ok(());
@@ -376,18 +373,18 @@ where
         self.backend
             .set_cursor_position(self.viewport_area.as_position())?;
         self.backend.clear_region(ClearType::AfterCursor)?;
-        // Reset the back buffer to make sure the next update will redraw everything.
+        // 次の更新で全てを再描画するようにバックバッファをリセット。
         self.previous_buffer_mut().reset();
         Ok(())
     }
 
-    /// Clears the inactive buffer and swaps it with the current buffer
+    /// 非アクティブなバッファをクリアし、現在のバッファと交換
     pub fn swap_buffers(&mut self) {
         self.previous_buffer_mut().reset();
         self.current = 1 - self.current;
     }
 
-    /// Queries the real size of the backend.
+    /// バックエンドの実際のサイズを問い合わせ。
     pub fn size(&self) -> io::Result<Size> {
         self.backend.size()
     }
@@ -414,11 +411,11 @@ fn diff_buffers(a: &Buffer, b: &Buffer) -> Vec<DrawCommand> {
         let row = &next_buffer[row_start..row_end];
         let bg = row.last().map(|cell| cell.bg).unwrap_or(Color::Reset);
 
-        // Scan the row to find the rightmost column that still matters: any non-space glyph,
-        // any cell whose bg differs from the row’s trailing bg, or any cell with modifiers.
-        // Multi-width glyphs extend that region through their full displayed width.
-        // After that point the rest of the row can be cleared with a single ClearToEnd, a perf win
-        // versus emitting multiple space Put commands.
+        // 行をスキャンしてまだ重要な右端の列を見つける: 非スペースグリフ、
+        // bgが行の末尾bgと異なるセル、またはモディファイア付きのセル。
+        // マルチ幅グリフはその表示幅全体にわたって領域を拡張。
+        // その後の行の残りは単一のClearToEndでクリアでき、複数のスペースPutコマンドを
+        // 発行するよりパフォーマンスが向上。
         let mut last_nonblank_column = 0usize;
         let mut column = 0usize;
         while column < row.len() {
@@ -438,10 +435,10 @@ fn diff_buffers(a: &Buffer, b: &Buffer) -> Vec<DrawCommand> {
         last_nonblank_columns[y as usize] = last_nonblank_column as u16;
     }
 
-    // Cells invalidated by drawing/replacing preceding multi-width characters:
+    // 先行するマルチ幅文字の描画/置換により無効化されたセル:
     let mut invalidated: usize = 0;
-    // Cells from the current buffer to skip due to preceding multi-width characters taking
-    // their place (the skipped cells should be blank anyway), or due to per-cell-skipping:
+    // 先行するマルチ幅文字がその場所を占めるためスキップすべき現在のバッファからのセル
+    // （スキップされるセルはとにかく空白のはず）、またはセル毎スキップのため:
     let mut to_skip: usize = 0;
     for (i, (current, previous)) in next_buffer.iter().zip(previous_buffer.iter()).enumerate() {
         if !current.skip && (current != previous || invalidated > 0) && to_skip == 0 {
@@ -477,7 +474,7 @@ where
             DrawCommand::Put { x, y, .. } => (x, y),
             DrawCommand::ClearToEnd { x, y, .. } => (x, y),
         };
-        // Move the cursor if the previous location was not (x - 1, y)
+        // 前の位置が(x - 1, y)でなかった場合、カーソルを移動
         if !matches!(last_pos, Some(p) if x == p.x + 1 && y == p.y) {
             queue!(writer, MoveTo(x, y))?;
         }
@@ -523,9 +520,9 @@ where
     Ok(())
 }
 
-/// The `ModifierDiff` struct is used to calculate the difference between two `Modifier`
-/// values. This is useful when updating the terminal display, as it allows for more
-/// efficient updates by only sending the necessary changes.
+/// `ModifierDiff`構造体は2つの`Modifier`値間の差分を計算するために使用される。
+/// これはターミナル表示の更新時に便利で、必要な変更のみを送信することで
+/// より効率的な更新を可能にする。
 struct ModifierDiff {
     pub from: Modifier,
     pub to: Modifier,
