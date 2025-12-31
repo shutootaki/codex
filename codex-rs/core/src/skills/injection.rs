@@ -15,7 +15,7 @@ use crate::skills::SkillMetadata;
 use crate::user_instructions::SkillInstructions;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::user_input::UserInput;
-use tokio::fs;  // 非同期ファイルシステム操作（tokio ランタイム用）
+use tokio::fs; // 非同期ファイルシステム操作（tokio ランタイム用）
 
 // =============================================================================
 // SkillInjections - 注入結果

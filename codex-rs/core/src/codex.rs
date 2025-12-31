@@ -2188,19 +2188,19 @@ fn errors_to_info(errors: &[SkillError]) -> Vec<SkillErrorInfo> {
         .collect()
 }
 
-/// Takes a user message as input and runs a loop where, at each turn, the model
-/// replies with either:
+/// ユーザーメッセージを入力として受け取り、各ターンでモデルが以下のいずれかを
+/// 返すループを実行する:
 ///
-/// - requested function calls
-/// - an assistant message
+/// - リクエストされた関数呼び出し
+/// - アシスタントメッセージ
 ///
-/// While it is possible for the model to return multiple of these items in a
-/// single turn, in practice, we generally one item per turn:
+/// モデルが1つのターンで複数のアイテムを返すことは可能だが、実際には通常
+/// 1ターンにつき1つのアイテムを返す:
 ///
-/// - If the model requests a function call, we execute it and send the output
-///   back to the model in the next turn.
-/// - If the model sends only an assistant message, we record it in the
-///   conversation history and consider the task complete.
+/// - モデルが関数呼び出しをリクエストした場合、それを実行し、次のターンで
+///   出力をモデルに送り返す。
+/// - モデルがアシスタントメッセージのみを送信した場合、それを会話履歴に記録し、
+///   タスク完了とみなす。
 ///
 pub(crate) async fn run_task(
     sess: Arc<Session>,
@@ -2255,14 +2255,14 @@ pub(crate) async fn run_task(
     sess.maybe_start_ghost_snapshot(Arc::clone(&turn_context), cancellation_token.child_token())
         .await;
     let mut last_agent_message: Option<String> = None;
-    // Although from the perspective of codex.rs, TurnDiffTracker has the lifecycle of a Task which contains
-    // many turns, from the perspective of the user, it is a single turn.
+    // codex.rsの観点では、TurnDiffTrackerは複数のターンを含むTaskのライフサイクルを持つが、
+    // ユーザーの観点では、これは単一のターンである。
     let turn_diff_tracker = Arc::new(tokio::sync::Mutex::new(TurnDiffTracker::new()));
 
     loop {
-        // Note that pending_input would be something like a message the user
-        // submitted through the UI while the model was running. Though the UI
-        // may support this, the model might not.
+        // pending_inputは、モデル実行中にユーザーがUIを通じて送信したメッセージなどを
+        // 指す。UIがこれをサポートしていても、モデルがサポートしていない場合がある
+        // ことに注意。
         let pending_input = sess
             .get_pending_input()
             .await
@@ -2270,7 +2270,7 @@ pub(crate) async fn run_task(
             .map(ResponseItem::from)
             .collect::<Vec<ResponseItem>>();
 
-        // Construct the input that we will send to the model.
+        // モデルに送信する入力を構築する。
         let turn_input: Vec<ResponseItem> = {
             sess.record_conversation_items(&turn_context, &pending_input)
                 .await;
@@ -2302,7 +2302,7 @@ pub(crate) async fn run_task(
                 let total_usage_tokens = sess.get_total_token_usage().await;
                 let token_limit_reached = total_usage_tokens >= auto_compact_limit;
 
-                // as long as compaction works well in getting us way below the token limit, we shouldn't worry about being in an infinite loop.
+                // 圧縮がトークン制限を大幅に下回るように機能する限り、無限ループの心配は不要。
                 if token_limit_reached && needs_follow_up {
                     run_auto_compact(&sess, &turn_context).await;
                     continue;
@@ -2323,7 +2323,7 @@ pub(crate) async fn run_task(
                 continue;
             }
             Err(CodexErr::TurnAborted) => {
-                // Aborted turn is reported via a different event.
+                // 中断されたターンは別のイベントを通じて報告される。
                 break;
             }
             Err(CodexErr::InvalidImageRequest()) => {
@@ -2337,7 +2337,7 @@ pub(crate) async fn run_task(
                 info!("Turn error: {e:#}");
                 let event = EventMsg::Error(e.to_error_event(None));
                 sess.send_event(&turn_context, event).await;
-                // let the user continue the conversation
+                // ユーザーが会話を続けられるようにする
                 break;
             }
         }
@@ -2412,7 +2412,7 @@ async fn run_turn(
         )
         .await
         {
-            // todo(aibrahim): map special cases and ? on other errors
+            // todo(aibrahim): 特殊なケースをマッピングし、他のエラーには?を使用する
             Ok(output) => return Ok(output),
             Err(CodexErr::TurnAborted) => {
                 return Err(CodexErr::TurnAborted);
@@ -2437,7 +2437,7 @@ async fn run_turn(
             Err(e @ CodexErr::InvalidRequest(_)) => return Err(e),
             Err(e @ CodexErr::RefreshTokenFailed(_)) => return Err(e),
             Err(e) => {
-                // Use the configured provider-specific stream retry budget.
+                // プロバイダー固有のストリームリトライ予算を使用する。
                 let max_retries = turn_context.client.get_provider().stream_max_retries();
                 if retries < max_retries {
                     retries += 1;
@@ -2449,9 +2449,8 @@ async fn run_turn(
                         "stream disconnected - retrying turn ({retries}/{max_retries} in {delay:?})...",
                     );
 
-                    // Surface retry information to any UI/front‑end so the
-                    // user understands what is happening instead of staring
-                    // at a seemingly frozen screen.
+                    // UI/フロントエンドにリトライ情報を表示し、ユーザーがフリーズしたような
+                    // 画面を見つめる代わりに、何が起きているか理解できるようにする。
                     sess.notify_stream_error(
                         &turn_context,
                         format!("Reconnecting... {retries}/{max_retries}"),
@@ -2609,8 +2608,8 @@ async fn try_run_turn(
                 }
             }
             ResponseEvent::RateLimits(snapshot) => {
-                // Update internal state with latest rate limits, but defer sending until
-                // token usage is available to avoid duplicate TokenCount events.
+                // 最新のレート制限で内部状態を更新するが、重複したTokenCountイベントを
+                // 避けるため、トークン使用量が利用可能になるまで送信を遅延させる。
                 sess.update_rate_limits(&turn_context, snapshot).await;
             }
             ResponseEvent::Completed {
@@ -2627,8 +2626,8 @@ async fn try_run_turn(
                 });
             }
             ResponseEvent::OutputTextDelta(delta) => {
-                // In review child threads, suppress assistant text deltas; the
-                // UI will show a selection popup from the final ReviewOutput.
+                // レビューの子スレッドでは、アシスタントのテキストデルタを抑制する。
+                // UIは最終的なReviewOutputから選択ポップアップを表示する。
                 if let Some(active) = active_item.as_ref() {
                     let event = AgentMessageContentDeltaEvent {
                         thread_id: sess.conversation_id.to_string(),

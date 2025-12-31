@@ -16,8 +16,8 @@
 // Rustでは `use` でモジュールや型をインポートする。Python の `import` に相当。
 // `crate::` は現在のクレート（パッケージ）のルートを指す。
 
-use crate::config::Config;  // アプリケーション設定
-use crate::git_info::resolve_root_git_project_for_trust;  // Gitリポジトリのルート取得
+use crate::config::Config; // アプリケーション設定
+use crate::git_info::resolve_root_git_project_for_trust; // Gitリポジトリのルート取得
 use crate::skills::model::SkillError;
 use crate::skills::model::SkillLoadOutcome;
 use crate::skills::model::SkillMetadata;
@@ -25,16 +25,16 @@ use crate::skills::system::system_cache_root_dir;
 use codex_protocol::protocol::SkillScope;
 
 // 外部クレート（サードパーティライブラリ）
-use dunce::canonicalize as normalize_path;  // パスの正規化（Windowsの\\?\プレフィックス除去）
-use serde::Deserialize;  // JSONやYAMLからのデシリアライズ用トレイト
-use std::collections::HashSet;  // Python の set に相当
-use std::collections::VecDeque;  // 両端キュー（BFS探索用）
-use std::error::Error;  // エラートレイト
-use std::fmt;  // フォーマット用トレイト
-use std::fs;  // ファイルシステム操作
-use std::path::Path;  // パスへの参照（&str のパス版）
-use std::path::PathBuf;  // 所有権を持つパス（String のパス版）
-use tracing::error;  // ログ出力用マクロ
+use dunce::canonicalize as normalize_path; // パスの正規化（Windowsの\\?\プレフィックス除去）
+use serde::Deserialize; // JSONやYAMLからのデシリアライズ用トレイト
+use std::collections::HashSet; // Python の set に相当
+use std::collections::VecDeque; // 両端キュー（BFS探索用）
+use std::error::Error; // エラートレイト
+use std::fmt; // フォーマット用トレイト
+use std::fs; // ファイルシステム操作
+use std::path::Path; // パスへの参照（&str のパス版）
+use std::path::PathBuf; // 所有権を持つパス（String のパス版）
+use tracing::error; // ログ出力用マクロ
 
 // =============================================================================
 // 内部データ構造（YAMLフロントマター用）
@@ -68,12 +68,12 @@ struct SkillFrontmatterMetadata {
 // `const` はコンパイル時定数。Python の大文字変数や TypeScript の `as const` に相当。
 // `&str` は文字列スライス（参照）。所有権を持たない読み取り専用の文字列。
 
-const SKILLS_FILENAME: &str = "SKILL.md";           // スキルファイルの名前
-const SKILLS_DIR_NAME: &str = "skills";             // スキルディレクトリ名
-const REPO_ROOT_CONFIG_DIR_NAME: &str = ".codex";   // リポジトリ設定ディレクトリ
+const SKILLS_FILENAME: &str = "SKILL.md"; // スキルファイルの名前
+const SKILLS_DIR_NAME: &str = "skills"; // スキルディレクトリ名
+const REPO_ROOT_CONFIG_DIR_NAME: &str = ".codex"; // リポジトリ設定ディレクトリ
 const ADMIN_SKILLS_ROOT: &str = "/etc/codex/skills"; // 管理者スキルのパス（UNIXのみ）
-const MAX_NAME_LEN: usize = 64;                     // スキル名の最大文字数
-const MAX_DESCRIPTION_LEN: usize = 1024;            // 説明の最大文字数
+const MAX_NAME_LEN: usize = 64; // スキル名の最大文字数
+const MAX_DESCRIPTION_LEN: usize = 1024; // 説明の最大文字数
 const MAX_SHORT_DESCRIPTION_LEN: usize = MAX_DESCRIPTION_LEN;
 
 // =============================================================================
@@ -139,7 +139,7 @@ pub fn load_skills(config: &Config) -> SkillLoadOutcome {
 
 /// スキルルート（検索対象ディレクトリ）を表す構造体。
 pub(crate) struct SkillRoot {
-    pub(crate) path: PathBuf,    // ディレクトリパス
+    pub(crate) path: PathBuf,     // ディレクトリパス
     pub(crate) scope: SkillScope, // スコープ（優先度を決める）
 }
 

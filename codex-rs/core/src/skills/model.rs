@@ -3,9 +3,9 @@
 //! スキル機能で使用するデータ構造を定義する。
 //! Python のデータクラスや TypeScript の interface に相当する型定義。
 
-use std::path::PathBuf;  // ファイルパスを表す型。OS間の差異を吸収する。
+use std::path::PathBuf; // ファイルパスを表す型。OS間の差異を吸収する。
 
-use codex_protocol::protocol::SkillScope;  // スキルのスコープ（Repo/User/System/Admin）
+use codex_protocol::protocol::SkillScope; // スキルのスコープ（Repo/User/System/Admin）
 
 // =============================================================================
 // SkillMetadata - スキルのメタデータ

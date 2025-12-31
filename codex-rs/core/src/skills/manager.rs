@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::RwLock;  // 読み書きロック（マルチスレッド対応）
+use std::sync::RwLock; // 読み書きロック（マルチスレッド対応）
 
 use crate::skills::SkillLoadOutcome;
 use crate::skills::loader::load_skills_from_roots;

@@ -8,7 +8,7 @@
 
 1. **全体像の把握** - Codex のデータフローを理解し、各コンポーネントの役割を把握
 2. **Skills 機能の深掘り** - Skills がどこでどのように使われるかを詳細に解説
-3. **コードへの直接リンク** - ファイルパスと行番号を明示し、すぐにコードを参照可能に
+3. **コードへの直接リンク** - ファイルパスと主要関数を明示し、すぐにコードを参照可能に
 
 ### Codex とは何か
 
@@ -77,26 +77,26 @@ Skills は「AI に対するオンボーディングガイド」として機能�
 
 以下は Skills モジュールを構成するファイル一覧である。読む順序としては、まず `model.rs` でデータ構造を理解し、次に `manager.rs` でエントリポイントを確認、その後 `loader.rs` で詳細な読み込みロジックを追う流れを推奨する。
 
-| ファイル              | 行数 | 役割                          | 最初に読むべき関数         |
-| --------------------- | ---- | ----------------------------- | -------------------------- |
-| `skills/mod.rs`       | 46   | モジュール定義と re-export    | -                          |
-| `skills/model.rs`     | 76   | データ構造（SkillMetadata等） | `SkillMetadata` 構造体     |
-| `skills/loader.rs`    | 1129 | スキル検出・YAML解析          | `load_skills_from_roots()` |
-| `skills/manager.rs`   | 118  | キャッシング管理              | `skills_for_cwd()`         |
-| `skills/injection.rs` | 148  | プロンプト注入                | `build_skill_injections()` |
-| `skills/render.rs`    | 75   | マークダウン生成              | `render_skills_section()`  |
-| `skills/system.rs`    | 272  | システムスキル展開            | `install_system_skills()`  |
+| ファイル              | 役割                          | 最初に読むべき関数         |
+| --------------------- | ----------------------------- | -------------------------- |
+| `skills/mod.rs`       | モジュール定義と re-export    | -                          |
+| `skills/model.rs`     | データ構造（SkillMetadata等） | `SkillMetadata` 構造体     |
+| `skills/loader.rs`    | スキル検出・YAML解析          | `load_skills_from_roots()` |
+| `skills/manager.rs`   | キャッシング管理              | `skills_for_cwd()`         |
+| `skills/injection.rs` | プロンプト注入                | `build_skill_injections()` |
+| `skills/render.rs`    | マークダウン生成              | `render_skills_section()`  |
+| `skills/system.rs`    | システムスキル展開            | `install_system_skills()`  |
 
 ### 主要ファイル一覧（コア）
 
 Skills モジュールは単独では動作せず、コアモジュールから呼び出される。以下のファイルが Skills との接点を持つ。
 
-| ファイル                  | 役割                             | Skills との関連                                           |
-| ------------------------- | -------------------------------- | --------------------------------------------------------- |
-| `codex.rs`                | セッション管理・タスク実行       | `run_task()` で Skills 注入（2229-2253行目付近）          |
-| `project_doc.rs`          | プロジェクトドキュメント読み込み | `get_user_instructions()` で Skills 一覧挿入（35-69行目） |
-| `conversation_manager.rs` | 会話マネージャー                 | `SkillsManager` 初期化（54-65行目）                       |
-| `client.rs`               | LLM クライアント                 | プロンプト送信（Skills 内容を含む）                       |
+| ファイル                  | 役割                             | Skills との関連                              |
+| ------------------------- | -------------------------------- | -------------------------------------------- |
+| `codex.rs`                | セッション管理・タスク実行       | `run_task()` で Skills 注入                  |
+| `project_doc.rs`          | プロジェクトドキュメント読み込み | `get_user_instructions()` で Skills 一覧挿入 |
+| `conversation_manager.rs` | 会話マネージャー                 | `SkillsManager` 初期化                       |
+| `client.rs`               | LLM クライアント                 | プロンプト送信（Skills 内容を含む）          |
 
 ---
 
@@ -118,7 +118,7 @@ Codex TUI の起動フローは `tui2/src/main.rs` から始まる。起動処�
 
 `main()` 関数は Rust プログラムのエントリポイントである。Codex では `arg0_dispatch_or_else` というラッパー関数を使用して、同一バイナリで複数の役割を果たせるようにしている。これは「arg0 トリック」と呼ばれるテクニックで、プログラムがどのような名前で呼び出されたかによって動作を変える仕組みである。
 
-**ファイル**: `tui2/src/main.rs:16-31`
+**ファイル**: `tui2/src/main.rs`
 
 ```rust
 fn main() -> anyhow::Result<()> {
@@ -145,7 +145,7 @@ fn main() -> anyhow::Result<()> {
 
 この関数は Tokio 非同期ランタイムを初期化し、メインの非同期処理を実行する。Rust の非同期処理はランタイムなしでは動作しないため、この初期化は必須である。Tokio は Rust で最も広く使われている非同期ランタイムで、ネットワーク I/O やファイル操作を効率的に処理できる。
 
-**ファイル**: `arg0/src/lib.rs:86-108`
+**ファイル**: `arg0/src/lib.rs`
 
 ```rust
 pub fn arg0_dispatch_or_else<F, Fut>(main_fn: F) -> anyhow::Result<()>
@@ -187,7 +187,7 @@ where
 
 `run_main()` は設定の読み込みとアプリケーションの初期化を担当する。設定は複数のソースからマージされる：コマンドライン引数、環境変数、設定ファイル（`~/.codex/config.toml`）の順で優先度が高い。
 
-**ファイル**: `tui2/src/lib.rs:109-353`
+**ファイル**: `tui2/src/lib.rs`
 
 ```
 run_main(cli, codex_linux_sandbox_exe)
@@ -217,7 +217,7 @@ run_main(cli, codex_linux_sandbox_exe)
 
 `run_ratatui_app()` は TUI（Text User Interface）の初期化と起動を担当する。Ratatui は Rust の TUI ライブラリで、ターミナル上にリッチなインターフェースを描画できる。この関数は「代替画面モード」に切り替えることで、通常のターミナル出力を保護しつつ専用の UI を表示する。
 
-**ファイル**: `tui2/src/lib.rs:355-553`
+**ファイル**: `tui2/src/lib.rs`
 
 ```
 run_ratatui_app(cli, config, overrides, ...)
@@ -298,7 +298,7 @@ pub async fn run(...) -> Result<AppExitInfo> {
 
 `ConversationManager` は複数の会話セッションを管理するコンポーネントである。ここで `SkillsManager` が作成され、システムスキルのインストールも行われる。`SkillsManager::new()` の内部で `install_system_skills()` が呼ばれ、バイナリに埋め込まれた組み込みスキルが `~/.codex/skills/.system/` に展開される。
 
-**ファイル**: `core/src/conversation_manager.rs:53-65`
+**ファイル**: `core/src/conversation_manager.rs`
 
 ```rust
 impl ConversationManager {
@@ -335,7 +335,7 @@ impl ConversationManager {
 
 この関数が返す `UnboundedSender<Op>` を通じて、UI はユーザー入力を非同期的に送信できる。
 
-**ファイル**: `tui2/src/chatwidget/agent.rs:18-71`
+**ファイル**: `tui2/src/chatwidget/agent.rs`
 
 ```rust
 pub(crate) fn spawn_agent(
@@ -551,7 +551,7 @@ pub enum Op {
 
 #### ステップ2: Submission Channel
 
-**ファイル**: `core/src/codex.rs:306-323`
+**ファイル**: `core/src/codex.rs`
 
 `Op` は `Submission` にラップされ、非同期チャネル経由でセッションに送信される。
 
@@ -573,7 +573,7 @@ pub async fn submit(&self, op: Op) -> CodexResult<String> {
 
 #### ステップ3: Submission Loop
 
-**ファイル**: `core/src/codex.rs:1578-1672`
+**ファイル**: `core/src/codex.rs`
 
 バックグラウンドタスクとして動作し、チャネルから `Submission` を受信して処理する。
 
@@ -595,7 +595,7 @@ async fn submission_loop(sess: Arc<Session>, config: Arc<Config>, rx_sub: Receiv
 
 #### ステップ4: セッションとターンコンテキスト
 
-**ファイル**: `core/src/codex.rs:336-373`, `core/src/state/session.rs`
+**ファイル**: `core/src/codex.rs`, `core/src/state/session.rs`
 
 ```rust
 // Session: 会話全体を管理
@@ -618,7 +618,7 @@ pub(crate) struct TurnContext {
 
 #### ステップ5: タスク生成と実行（★Skills注入ポイント★）
 
-**ファイル**: `core/src/codex.rs:2205-2347`
+**ファイル**: `core/src/codex.rs`
 
 ```rust
 pub(crate) async fn run_task(...) -> Option<String> {
@@ -652,7 +652,7 @@ pub(crate) async fn run_task(...) -> Option<String> {
 
 #### ステップ6-7: プロンプト構築と API リクエスト
 
-**ファイル**: `core/src/codex.rs:2365-2469`, `core/src/client.rs`
+**ファイル**: `core/src/codex.rs`, `core/src/client.rs`
 
 ```rust
 async fn run_turn(...) -> CodexResult<TurnRunResult> {
@@ -676,7 +676,7 @@ async fn run_turn(...) -> CodexResult<TurnRunResult> {
 
 #### ステップ8-9: レスポンス処理とイベント送信
 
-**ファイル**: `core/src/codex.rs:2504-2710`
+**ファイル**: `core/src/codex.rs`
 
 ```rust
 loop {
@@ -740,7 +740,7 @@ Codex が起動してからユーザー入力を受け付けるまでの初期�
 
 ### 1.4.1 マネージャーの初期化順序
 
-**ファイル**: `conversation_manager.rs:53-133`
+**ファイル**: `conversation_manager.rs`
 
 ```
 ConversationManager::new_conversation()
@@ -748,13 +748,13 @@ ConversationManager::new_conversation()
   ├─ AuthManager（認証）
   │    • CodexAuth: 認証モード（ChatGPT, OAuth, ApiKey）
   │    • トークンリフレッシュ: 8時間間隔
-  │    • auth_manager.rs:42-100
+  │    • auth_manager.rs
   │
   ├─ ModelsManager（モデル管理）
   │    • ローカルモデルプリセット読み込み
   │    • キャッシュされたリモートモデル読み込み
   │    • キャッシュ TTL: 300秒（デフォルト）
-  │    • models_manager/manager.rs:49-77
+  │    • models_manager/manager.rs
   │
   ├─ SkillsManager（スキル管理）
   │    • システムスキルのインストール
@@ -784,7 +784,7 @@ ConversationManager::new_conversation()
 
 ### 1.4.2 Session 作成の詳細
 
-**ファイル**: `codex.rs:573-729`
+**ファイル**: `codex.rs`
 
 ```rust
 impl Session {
@@ -903,7 +903,7 @@ Session、SessionState、TurnContext の関係と役割を詳細に解説する�
 
 ### 1.5.2 Session の主要フィールド
 
-**ファイル**: `codex.rs:339-349`
+**ファイル**: `codex.rs`
 
 ```rust
 pub(crate) struct Session {
@@ -926,7 +926,7 @@ pub(crate) struct Session {
 
 ### 1.5.3 SessionServices の詳細
 
-**ファイル**: `state/service.rs:17-31`
+**ファイル**: `state/service.rs`
 
 ```rust
 pub(crate) struct SessionServices {
@@ -1008,7 +1008,7 @@ Codex の非同期処理アーキテクチャを詳細に解説する。
 
 ### 1.6.2 タスクライフサイクル
 
-**ファイル**: `tasks/mod.rs:106-160`
+**ファイル**: `tasks/mod.rs`
 
 ```
 Session::spawn_task(turn_context, input, task)
@@ -1045,7 +1045,7 @@ Session::spawn_task(turn_context, input, task)
 
 ### 1.6.3 キャンセルパターン
 
-**ファイル**: `tools/parallel.rs:73-90`
+**ファイル**: `tools/parallel.rs`
 
 ```rust
 // ツール実行時のキャンセル対応パターン
@@ -1091,88 +1091,74 @@ tokio::select! {
 
 ### 1.7.1 ContextManager
 
-**ファイル**: `context_manager/history.rs:18-250`
+**ファイル**: `context_manager/history.rs`
 
 ```rust
 pub(crate) struct ContextManager {
-    items: Vec<ResponseItem>,        // 履歴（古い順）
+    items: Vec<ResponseItem>,            // 履歴（古い順）
     token_info: Option<TokenUsageInfo>,  // トークン使用量
 }
 
 impl ContextManager {
     // 履歴への記録（切り捨てポリシー適用）
-    pub fn record_items<'a>(
-        &mut self,
-        items: impl Iterator<Item = &'a ResponseItem>,
-        policy: TruncationPolicy,
-    ) {
+    // ジェネリクスで IntoIterator を受け取り、process_item で個別に処理
+    pub(crate) fn record_items<I>(&mut self, items: I, policy: TruncationPolicy)
+    where
+        I: IntoIterator,
+        I::Item: std::ops::Deref<Target = ResponseItem>,
+    {
         for item in items {
-            let truncated = policy.truncate(item);
-            self.items.push(truncated);
+            let item_ref = item.deref();
+            // API メッセージと GhostSnapshot のみを記録
+            if !is_api_message(item_ref) && !matches!(item_ref, ResponseItem::GhostSnapshot { .. }) {
+                continue;
+            }
+            let processed = self.process_item(item_ref, policy);
+            self.items.push(processed);
         }
     }
 
     // プロンプト用履歴取得（GhostSnapshot を除外）
-    pub fn get_history_for_prompt(&self) -> Vec<ResponseItem> {
-        self.items
-            .iter()
-            .filter(|item| !matches!(item, ResponseItem::GhostSnapshot(_)))
-            .cloned()
-            .collect()
+    pub(crate) fn get_history_for_prompt(&mut self) -> Vec<ResponseItem> {
+        let mut history = self.get_history();
+        Self::remove_ghost_snapshots(&mut history);
+        history
     }
 
-    // トークン数推定
-    pub fn estimate_token_count(&self, turn_context: &TurnContext) -> i64 {
-        let base_tokens = estimate_base_tokens(turn_context);
-        let item_tokens: i64 = self.items.iter().map(|item| {
-            match item {
-                ResponseItem::GhostSnapshot(_) => 0,  // カウントしない
-                ResponseItem::Reasoning { content } => {
-                    estimate_reasoning_length(content.len())
+    // トークン数推定（戻り値は Option<i64>）
+    pub(crate) fn estimate_token_count(&self, turn_context: &TurnContext) -> Option<i64> {
+        let model_family = turn_context.client.get_model_family();
+        let base_tokens = i64::try_from(
+            approx_token_count(model_family.base_instructions.as_str())
+        ).unwrap_or(i64::MAX);
+
+        let items_tokens = self.items.iter().fold(0i64, |acc, item| {
+            acc + match item {
+                ResponseItem::GhostSnapshot { .. } => 0,
+                ResponseItem::Reasoning { encrypted_content: Some(content), .. }
+                | ResponseItem::Compaction { encrypted_content: content } => {
+                    estimate_reasoning_length(content.len()) as i64
                 }
-                _ => {
+                item => {
                     let serialized = serde_json::to_string(item).unwrap_or_default();
-                    approx_token_count(serialized.len())
+                    i64::try_from(approx_token_count(&serialized)).unwrap_or(i64::MAX)
                 }
             }
-        }).sum();
-        base_tokens + item_tokens
-    }
-}
-```
-
-### 1.7.2 切り捨てポリシー
-
-**ファイル**: `truncate.rs:14-96`
-
-```rust
-pub enum TruncationPolicy {
-    Bytes(usize),   // 最大バイト数
-    Tokens(usize),  // 最大トークン数
-}
-
-impl TruncationPolicy {
-    // トークン数からバイト数に変換（4 bytes ≈ 1 token）
-    pub fn to_bytes(&self) -> usize {
-        match self {
-            Self::Bytes(b) => *b,
-            Self::Tokens(t) => t * 4,
-        }
+        });
+        Some(base_tokens.saturating_add(items_tokens))
     }
 
-    // ResponseItem を切り捨て
-    pub fn truncate(&self, item: &ResponseItem) -> ResponseItem {
+    // 個々のアイテムを切り捨てポリシーに基づいて処理
+    fn process_item(&self, item: &ResponseItem, policy: TruncationPolicy) -> ResponseItem {
         match item {
-            ResponseItem::FunctionCallOutput { output, .. } => {
-                let max_bytes = self.to_bytes();
-                if output.len() > max_bytes {
-                    let truncated = &output[..max_bytes];
-                    ResponseItem::FunctionCallOutput {
-                        output: format!("{truncated}\n[truncated]"),
-                        ..item.clone()
-                    }
-                } else {
-                    item.clone()
+            ResponseItem::FunctionCallOutput { call_id, output } => {
+                let truncated = truncate_text(&output.content, policy.mul(1.2));
+                ResponseItem::FunctionCallOutput {
+                    call_id: call_id.clone(),
+                    output: FunctionCallOutputPayload {
+                        content: truncated,
+                        ..output.clone()
+                    },
                 }
             }
             _ => item.clone(),
@@ -1181,9 +1167,62 @@ impl TruncationPolicy {
 }
 ```
 
+### 1.7.2 切り捨てポリシー
+
+**ファイル**: `truncate.rs`
+
+```rust
+const APPROX_BYTES_PER_TOKEN: usize = 4;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TruncationPolicy {
+    Bytes(usize),   // 最大バイト数
+    Tokens(usize),  // 最大トークン数
+}
+
+impl TruncationPolicy {
+    /// バイト予算を取得（4 bytes ≈ 1 token で変換）
+    pub fn byte_budget(&self) -> usize {
+        match self {
+            TruncationPolicy::Bytes(bytes) => *bytes,
+            TruncationPolicy::Tokens(tokens) => approx_bytes_for_tokens(*tokens),
+        }
+    }
+
+    /// トークン予算を取得
+    pub fn token_budget(&self) -> usize {
+        match self {
+            TruncationPolicy::Bytes(bytes) => approx_tokens_from_byte_count(*bytes),
+            TruncationPolicy::Tokens(tokens) => *tokens,
+        }
+    }
+
+    /// 予算をスケール（切り上げ）
+    pub fn mul(self, multiplier: f64) -> Self {
+        match self {
+            TruncationPolicy::Bytes(bytes) => {
+                TruncationPolicy::Bytes((bytes as f64 * multiplier).ceil() as usize)
+            }
+            TruncationPolicy::Tokens(tokens) => {
+                TruncationPolicy::Tokens((tokens as f64 * multiplier).ceil() as usize)
+            }
+        }
+    }
+}
+
+// 切り捨て処理は独立した関数として実装
+pub(crate) fn truncate_text(content: &str, policy: TruncationPolicy) -> String {
+    if content.len() <= policy.byte_budget() {
+        return content.to_string();
+    }
+    // 前半と後半を残し、中間を切り捨て
+    truncate_with_byte_estimate(content, policy)
+}
+```
+
 ### 1.7.3 自動コンパクション
 
-**ファイル**: `codex.rs:2215-2223`
+**ファイル**: `codex.rs`
 
 ```rust
 // トークン使用量がモデルの制限に達したら自動コンパクション
@@ -1207,7 +1246,7 @@ if total_usage_tokens >= auto_compact_limit {
 
 ### 1.8.1 ToolRouter アーキテクチャ
 
-**ファイル**: `tools/router.rs:21-151`
+**ファイル**: `tools/router.rs`
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -1239,7 +1278,7 @@ if total_usage_tokens >= auto_compact_limit {
 
 ### 1.8.2 ツール呼び出しフロー
 
-**ファイル**: `codex.rs:2504-2600`
+**ファイル**: `codex.rs`
 
 ```rust
 // try_run_turn 内のツール実行ループ
@@ -1293,7 +1332,7 @@ while let Some(result) = in_flight.next().await {
 
 ### 1.8.3 MCP ツール統合
 
-**ファイル**: `mcp_connection_manager.rs:1-250`
+**ファイル**: `mcp_connection_manager.rs`
 
 ```rust
 // MCP ツール名のフォーマット
@@ -1364,7 +1403,7 @@ impl McpConnectionManager {
 
 ### 1.9.2 イベントフロー
 
-**ファイル**: `codex.rs:961-986`
+**ファイル**: `codex.rs`
 
 ```rust
 // Session からイベントを送信
@@ -1602,26 +1641,13 @@ run_task()
 
 **結果**: モデルはスキルの詳細な指示を参照して応答を生成する。
 
-### コード位置まとめ
-
-| 処理                     | ファイル                  | 行番号    |
-| ------------------------ | ------------------------- | --------- |
-| SkillsManager 初期化     | `conversation_manager.rs` | 54-55     |
-| スキル読み込み           | `codex.rs`                | 220-233   |
-| システムプロンプト構築   | `codex.rs`                | 235-241   |
-| スキル一覧レンダリング   | `project_doc.rs`          | 35-39     |
-| タスク実行時のスキル注入 | `codex.rs`                | 2229-2253 |
-| スキルコンテンツ読み込み | `skills/injection.rs`     | 56-114    |
-
----
-
 ## 4. Skills モジュールの構造
 
 ```
 codex-rs/core/src/skills/
 ├── mod.rs          # モジュール定義とパブリック API（エントリポイント）
 ├── model.rs        # データ構造定義（SkillMetadata, SkillError 等）
-├── loader.rs       # スキル検出・解析（最大のファイル、1129行）
+├── loader.rs       # スキル検出・解析（最大のファイル）
 ├── manager.rs      # キャッシング管理（SkillsManager）
 ├── injection.rs    # プロンプトへの注入処理
 ├── render.rs       # マークダウン生成
@@ -1658,11 +1684,11 @@ Rust では構造体（struct）と列挙型（enum）を組み合わせてデ�
 - `path`: SKILL.md ファイルへの絶対パス。スキル内容を読み込む際に使用
 - `scope`: スキルの優先度レベル（Repo > User > System > Admin）
 
-**ファイル**: `model.rs:6-12`
+**ファイル**: `model.rs`
 
 ```rust
 /// スキルのメタデータ（YAML フロントマターから抽出）
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SkillMetadata {
     pub name: String,                      // スキル名（最大64文字）
     pub description: String,               // 説明（最大1024文字）
@@ -1687,12 +1713,13 @@ pub struct SkillMetadata {
 **ファイル**: `protocol/src/protocol.rs`
 
 ```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
 pub enum SkillScope {
-    Repo,    // リポジトリ固有（.codex/skills/）- 最優先
     User,    // ユーザー定義（~/.codex/skills/）
+    Repo,    // リポジトリ固有（.codex/skills/）
     System,  // 組み込み（~/.codex/skills/.system/）
-    Admin,   // 管理者（/etc/codex/skills/）- 最低優先
+    Admin,   // 管理者（/etc/codex/skills/）
 }
 ```
 
@@ -1717,7 +1744,7 @@ pub struct SkillLoadOutcome {
 
 ## 6. コードウォークスルー: スキル読み込み
 
-**ファイル**: `loader.rs`（1129行、最大のファイル）
+**ファイル**: `loader.rs`（最大のファイル）
 
 このセクションでは、スキルがディスクからどのように読み込まれるかを詳細に解説する。処理は4つの段階に分かれている：
 
@@ -1734,7 +1761,7 @@ pub struct SkillLoadOutcome {
 
 リポジトリスキルは、Git リポジトリのルートにある `.codex/skills/` ディレクトリから読み込まれる。これにより、プロジェクト固有のスキルをバージョン管理できる。
 
-**関数**: `skill_roots_for_cwd()` (loader.rs:100-130)
+**関数**: `skill_roots_for_cwd()`
 
 ```rust
 pub(crate) fn skill_roots_for_cwd(codex_home: &Path, cwd: &Path) -> Vec<SkillRoot> {
@@ -1771,33 +1798,55 @@ DFS（深さ優先探索）ではなく BFS を使用する理由は、スキル
 - **隠しファイル/ディレクトリ**（`.` で始まるもの）: 設定ファイルや内部状態を誤って読み込まないため
 - **シンボリックリンク**: シンボリックリンク攻撃を防ぐため
 
-**関数**: `discover_skills_under_root()` (loader.rs:200-280)
+**関数**: `discover_skills_under_root()`
 
 ```rust
-fn discover_skills_under_root(root: &SkillRoot) -> Vec<Result<SkillMetadata, SkillError>> {
-    let mut results = Vec::new();
+fn discover_skills_under_root(root_path: &Path, scope: SkillScope, outcome: &mut SkillLoadOutcome) {
     let mut queue: VecDeque<PathBuf> = VecDeque::new();  // BFS キュー
-    queue.push_back(root.path.clone());
+    queue.push_back(root_path.to_path_buf());
 
     while let Some(dir) = queue.pop_front() {
-        for entry in fs::read_dir(&dir)? {
+        let Ok(entries) = fs::read_dir(&dir) else { continue };
+
+        for entry in entries.flatten() {
             let path = entry.path();
 
-            // 隠しファイル・シンボリックリンクはスキップ
-            if is_hidden(&path) || path.is_symlink() {
+            // ファイル名を取得（Unicode 変換失敗時はスキップ）
+            let file_name = match path.file_name().and_then(|f| f.to_str()) {
+                Some(name) => name,
+                None => continue,
+            };
+
+            // 隠しファイル（.で始まる）はスキップ
+            if file_name.starts_with('.') {
                 continue;
             }
 
-            if path.is_dir() {
+            let Ok(file_type) = entry.file_type() else { continue };
+
+            // シンボリックリンクはスキップ（セキュリティ対策）
+            if file_type.is_symlink() {
+                continue;
+            }
+
+            if file_type.is_dir() {
                 queue.push_back(path);  // サブディレクトリをキューに追加
-            } else if path.file_name() == Some(OsStr::new("SKILL.md")) {
+            } else if file_type.is_file() && file_name == "SKILL.md" {
                 // SKILL.md を発見 → パース
-                results.push(parse_skill_file(&path, root.scope));
+                match parse_skill_file(&path, scope) {
+                    Ok(skill) => outcome.skills.push(skill),
+                    Err(err) => {
+                        if scope != SkillScope::System {
+                            outcome.errors.push(SkillError {
+                                path,
+                                message: err.to_string(),
+                            });
+                        }
+                    }
+                }
             }
         }
     }
-
-    results
 }
 ```
 
@@ -1817,7 +1866,7 @@ YAML フロントマターは、Markdown ファイルの先頭に `---` で囲�
 
 バリデーションにより、悪意のある長大なスキル名や説明文がシステムに悪影響を与えることを防いでいる。
 
-**関数**: `parse_skill_file()` (loader.rs:300-380)
+**関数**: `parse_skill_file()`
 
 ```rust
 fn parse_skill_file(path: &Path, scope: SkillScope) -> Result<SkillMetadata, SkillParseError> {
@@ -1851,7 +1900,7 @@ fn parse_skill_file(path: &Path, scope: SkillScope) -> Result<SkillMetadata, Ski
 
 `retain` メソッドは、クロージャが `true` を返す要素だけを残すフィルタ処理。`seen.insert()` は新規追加時に `true` を返すため、初めて見たスキル名だけが残る仕組みになっている。
 
-**関数**: `load_skills_from_roots()` (loader.rs:150-190)
+**関数**: `load_skills_from_roots()`
 
 ```rust
 pub fn load_skills_from_roots(roots: Vec<SkillRoot>) -> SkillLoadOutcome {
@@ -1878,7 +1927,7 @@ pub fn load_skills_from_roots(roots: Vec<SkillRoot>) -> SkillLoadOutcome {
 
 ## 7. コードウォークスルー: キャッシング
 
-**ファイル**: `manager.rs`（118行）
+**ファイル**: `manager.rs`
 
 スキルの読み込みはファイルシステム操作を伴うため、比較的コストが高い処理である。`SkillsManager` はこれをキャッシュすることで、同じ cwd（作業ディレクトリ）に対する複数回のリクエストを効率化する。
 
@@ -1908,7 +1957,7 @@ pub struct SkillsManager {
 
 システムスキルのインストールでエラーが発生しても、`SkillsManager` 自体の作成は続行される。これは「スキル機能が使えなくてもアプリケーション全体は動作する」というフォールトトレラントな設計。
 
-**関数**: `new()` (manager.rs:43-65)
+**関数**: `new()`
 
 ```rust
 pub fn new(codex_home: PathBuf) -> Self {
@@ -1932,7 +1981,7 @@ pub fn new(codex_home: PathBuf) -> Self {
 
 `PoisonError`（ロックを保持したスレッドがパニックした場合のエラー）の処理として、`err.into_inner()` でロックの中身を強制的に取得している。これは「ロックが汚染されていても処理を続ける」という決断で、スキル読み込みの失敗がアプリケーション全体をクラッシュさせないための配慮。
 
-**関数**: `skills_for_cwd_with_options()` (manager.rs:75-116)
+**関数**: `skills_for_cwd_with_options()`
 
 ```rust
 pub fn skills_for_cwd_with_options(&self, cwd: &Path, force_reload: bool) -> SkillLoadOutcome {
@@ -1965,7 +2014,7 @@ pub fn skills_for_cwd_with_options(&self, cwd: &Path, force_reload: bool) -> Ski
 
 ## 8. コードウォークスルー: プロンプト注入
 
-**ファイル**: `injection.rs`（148行）
+**ファイル**: `injection.rs`
 
 このセクションでは、ユーザーが選択したスキルの内容（SKILL.md）を読み込み、LLM に渡す形式に変換する処理を解説する。
 
@@ -2002,7 +2051,7 @@ pub(crate) struct SkillInjections {
 3. 各スキルファイルを非同期で読み込み
 4. `ResponseItem` に変換して結果に追加
 
-**関数**: `build_skill_injections()` (injection.rs:56-114)
+**関数**: `build_skill_injections()`
 
 ```rust
 pub(crate) async fn build_skill_injections(
@@ -2053,7 +2102,7 @@ Rust の `if let ... && ...` 構文（let chains）は、パターンマッチ�
 
 `seen.insert(name.clone())` は、新規追加時に `true` を返し、既存要素の場合は `false` を返す。これを条件式として使うことで、重複排除とチェックを1行で実現している。
 
-**関数**: `collect_explicit_skill_mentions()` (injection.rs:123-147)
+**関数**: `collect_explicit_skill_mentions()`
 
 ```rust
 fn collect_explicit_skill_mentions(
@@ -2081,7 +2130,7 @@ fn collect_explicit_skill_mentions(
 
 ## 9. コードウォークスルー: マークダウン生成
 
-**ファイル**: `render.rs`（75行）
+**ファイル**: `render.rs`
 
 このセクションでは、スキル一覧をマークダウン形式に変換する処理を解説する。生成されたマークダウンはシステムプロンプトの一部として LLM に渡される。
 
@@ -2103,7 +2152,7 @@ fn collect_explicit_skill_mentions(
 
 ガイダンスには「プログレッシブディスクロージャー」（段階的開示）の指示が含まれている。これにより、LLM はスキルの内容を一度に全て読み込むのではなく、必要に応じて段階的に参照するよう指示される。
 
-**関数**: `render_skills_section()` (render.rs:23-74)
+**関数**: `render_skills_section()`
 
 ```rust
 pub fn render_skills_section(skills: &[SkillMetadata]) -> Option<String> {
@@ -2138,7 +2187,7 @@ pub fn render_skills_section(skills: &[SkillMetadata]) -> Option<String> {
 
 ## 10. コードウォークスルー: システムスキル
 
-**ファイル**: `system.rs`（272行）
+**ファイル**: `system.rs`
 
 システムスキルは、Codex バイナリに埋め込まれた「組み込みスキル」である。これにより：
 
@@ -2175,7 +2224,7 @@ const SYSTEM_SKILLS_DIR: Dir =
 4. 不一致なら既存ディレクトリを削除して再展開
 5. 新しいフィンガープリントをマーカーファイルに保存
 
-**関数**: `install_system_skills()` (system.rs:92-141)
+**関数**: `install_system_skills()`
 
 ```rust
 pub(crate) fn install_system_skills(codex_home: &Path) -> Result<(), SystemSkillsError> {
@@ -2209,10 +2258,10 @@ pub(crate) fn install_system_skills(codex_home: &Path) -> Result<(), SystemSkill
 
 ### 10.3 現在の組み込みスキル
 
-| スキル            | 説明                                        |
-| ----------------- | ------------------------------------------- |
-| `skill-creator`   | 新しいスキルを作成するためのガイド（374行） |
-| `skill-installer` | 既存スキルをインストールするためのガイド    |
+| スキル            | 説明                                     |
+| ----------------- | ---------------------------------------- |
+| `skill-creator`   | 新しいスキルを作成するためのガイド       |
+| `skill-installer` | 既存スキルをインストールするためのガイド |
 
 ---
 
@@ -2220,7 +2269,7 @@ pub(crate) fn install_system_skills(codex_home: &Path) -> Result<(), SystemSkill
 
 ## 11. 機能フラグ
 
-**ファイル**: `features.rs:386-391`
+**ファイル**: `features.rs`
 
 ```rust
 FeatureSpec {
@@ -2343,7 +2392,7 @@ metadata:
 
 ### 15.2 SystemSkillsError
 
-**ファイル**: `system.rs:254-271`
+**ファイル**: `system.rs`
 
 ```rust
 #[derive(Debug, Error)]
@@ -2365,15 +2414,15 @@ pub(crate) enum SystemSkillsError {
 
 ### Skills モジュール
 
-| ファイル              | 行数 | 主要な関数/構造体                                                                                                          | 役割                      |
-| --------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| `skills/mod.rs`       | 46   | -                                                                                                                          | モジュール定義、re-export |
-| `skills/model.rs`     | 76   | `SkillMetadata`, `SkillError`, `SkillLoadOutcome`                                                                          | データ構造                |
-| `skills/loader.rs`    | 1129 | `load_skills()`, `load_skills_from_roots()`, `skill_roots_for_cwd()`, `discover_skills_under_root()`, `parse_skill_file()` | スキル検出・解析          |
-| `skills/manager.rs`   | 118  | `SkillsManager`, `skills_for_cwd()`, `skills_for_cwd_with_options()`                                                       | キャッシング管理          |
-| `skills/injection.rs` | 148  | `SkillInjections`, `build_skill_injections()`, `collect_explicit_skill_mentions()`                                         | プロンプト注入            |
-| `skills/render.rs`    | 75   | `render_skills_section()`                                                                                                  | マークダウン生成          |
-| `skills/system.rs`    | 272  | `install_system_skills()`, `embedded_system_skills_fingerprint()`, `write_embedded_dir()`                                  | システムスキル            |
+| ファイル              | 主要な関数/構造体                                                                                                          | 役割                      |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `skills/mod.rs`       | -                                                                                                                          | モジュール定義、re-export |
+| `skills/model.rs`     | `SkillMetadata`, `SkillError`, `SkillLoadOutcome`                                                                          | データ構造                |
+| `skills/loader.rs`    | `load_skills()`, `load_skills_from_roots()`, `skill_roots_for_cwd()`, `discover_skills_under_root()`, `parse_skill_file()` | スキル検出・解析          |
+| `skills/manager.rs`   | `SkillsManager`, `skills_for_cwd()`, `skills_for_cwd_with_options()`                                                       | キャッシング管理          |
+| `skills/injection.rs` | `SkillInjections`, `build_skill_injections()`, `collect_explicit_skill_mentions()`                                         | プロンプト注入            |
+| `skills/render.rs`    | `render_skills_section()`                                                                                                  | マークダウン生成          |
+| `skills/system.rs`    | `install_system_skills()`, `embedded_system_skills_fingerprint()`, `write_embedded_dir()`                                  | システムスキル            |
 
 ### コアモジュール
 
@@ -2384,22 +2433,6 @@ pub(crate) enum SystemSkillsError {
 | `conversation_manager.rs` | `ConversationManager::new()`                                                                | `SkillsManager` 初期化                |
 | `client.rs`               | `ModelClient`, `stream()`, `stream_responses_api()`                                         | LLM へのリクエスト送信                |
 | `features.rs`             | `Feature::Skills`                                                                           | 機能フラグ定義                        |
-
-### 行番号クイックリファレンス
-
-| 処理                             | ファイル                  | 行番号    |
-| -------------------------------- | ------------------------- | --------- |
-| SkillsManager 初期化             | `conversation_manager.rs` | 54-55     |
-| セッション開始時のスキル読み込み | `codex.rs`                | 220-233   |
-| システムプロンプト構築           | `codex.rs`                | 235-241   |
-| スキル一覧レンダリング呼び出し   | `project_doc.rs`          | 35-39     |
-| run_task でのスキル注入          | `codex.rs`                | 2229-2253 |
-| Submission チャネル送信          | `codex.rs`                | 306-323   |
-| Submission ループ                | `codex.rs`                | 1578-1672 |
-| run_turn プロンプト構築          | `codex.rs`                | 2365-2469 |
-| try_run_turn イベントループ      | `codex.rs`                | 2504-2710 |
-
----
 
 ## 実装時期（Git 履歴）
 
@@ -2424,7 +2457,7 @@ pub(crate) enum SystemSkillsError {
 1. **全体アーキテクチャ**: ユーザー入力から LLM 出力までの9ステップのデータフロー
 2. **Skills 機能の詳細**: 2フェーズ（起動時・入力時）での注入タイミングとコードパス
 3. **各モジュールのウォークスルー**: 読む順序と主要関数の解説
-4. **リファレンス**: ファイル・関数・行番号の一覧
+4. **リファレンス**: ファイル・関数の一覧
 
 Codex の Skills 機能は、**モジュール化された専門知識パッケージ**として、AI エージェントに動的に機能を拡張できる。実装は堅牢で、複数スコープ、優先度ベースの重複排除、セキュリティ検査が組み込まれている。
 

@@ -10,7 +10,7 @@
 //! 4. マーカーファイルにフィンガープリントを保存
 
 use codex_utils_absolute_path::AbsolutePathBuf;
-use include_dir::Dir;  // ディレクトリをコンパイル時に埋め込むためのクレート
+use include_dir::Dir; // ディレクトリをコンパイル時に埋め込むためのクレート
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::Hash;
@@ -18,7 +18,7 @@ use std::hash::Hasher;
 use std::path::Path;
 use std::path::PathBuf;
 
-use thiserror::Error;  // エラー型を簡単に定義するためのクレート
+use thiserror::Error; // エラー型を簡単に定義するためのクレート
 
 // =============================================================================
 // コンパイル時埋め込み
@@ -39,10 +39,10 @@ const SYSTEM_SKILLS_DIR: Dir =
 // =============================================================================
 // 定数
 // =============================================================================
-const SYSTEM_SKILLS_DIR_NAME: &str = ".system";  // システムスキルを展開するディレクトリ名
+const SYSTEM_SKILLS_DIR_NAME: &str = ".system"; // システムスキルを展開するディレクトリ名
 const SKILLS_DIR_NAME: &str = "skills";
-const SYSTEM_SKILLS_MARKER_FILENAME: &str = ".codex-system-skills.marker";  // フィンガープリント保存用
-const SYSTEM_SKILLS_MARKER_SALT: &str = "v1";  // フィンガープリント計算のソルト（バージョン管理用）
+const SYSTEM_SKILLS_MARKER_FILENAME: &str = ".codex-system-skills.marker"; // フィンガープリント保存用
+const SYSTEM_SKILLS_MARKER_SALT: &str = "v1"; // フィンガープリント計算のソルト（バージョン管理用）
 
 // =============================================================================
 // パス解決
@@ -69,7 +69,7 @@ pub(crate) fn system_cache_root_dir(codex_home: &Path) -> PathBuf {
 /// 絶対パス版のキャッシュディレクトリ計算（内部ヘルパー）。
 fn system_cache_root_dir_abs(codex_home: &AbsolutePathBuf) -> std::io::Result<AbsolutePathBuf> {
     codex_home
-        .join(SKILLS_DIR_NAME)?  // ? でエラーを伝播
+        .join(SKILLS_DIR_NAME)? // ? でエラーを伝播
         .join(SYSTEM_SKILLS_DIR_NAME)
 }
 
@@ -119,7 +119,7 @@ pub(crate) fn install_system_skills(codex_home: &Path) -> Result<(), SystemSkill
     if dest_system.as_path().is_dir()
         && read_marker(&marker_path).is_ok_and(|marker| marker == expected_fingerprint)
     {
-        return Ok(());  // 何もせずに成功を返す
+        return Ok(()); // 何もせずに成功を返す
     }
 
     // --- 再インストールが必要 ---
@@ -148,7 +148,7 @@ pub(crate) fn install_system_skills(codex_home: &Path) -> Result<(), SystemSkill
 fn read_marker(path: &AbsolutePathBuf) -> Result<String, SystemSkillsError> {
     Ok(fs::read_to_string(path.as_path())
         .map_err(|source| SystemSkillsError::io("read system skills marker", source))?
-        .trim()  // 末尾の改行を除去
+        .trim() // 末尾の改行を除去
         .to_string())
 }
 

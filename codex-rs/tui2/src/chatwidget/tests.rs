@@ -1131,7 +1131,10 @@ async fn exec_history_cell_shows_working_then_failed() {
         blob.contains("• Ran false"),
         "コマンドとヘッダーテキストが存在するべき: {blob:?}"
     );
-    assert!(blob.to_lowercase().contains("bloop"), "エラーテキストが存在するべき");
+    assert!(
+        blob.to_lowercase().contains("bloop"),
+        "エラーテキストが存在するべき"
+    );
 }
 
 #[tokio::test]
@@ -1298,7 +1301,11 @@ async fn slash_rollout_displays_current_path() {
     chat.dispatch_command(SlashCommand::Rollout);
 
     let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1, "ロールアウトパスの情報メッセージが期待される");
+    assert_eq!(
+        cells.len(),
+        1,
+        "ロールアウトパスの情報メッセージが期待される"
+    );
     let rendered = lines_to_single_string(&cells[0]);
     assert!(
         rendered.contains(&rollout_path.display().to_string()),
@@ -1516,7 +1523,10 @@ async fn custom_prompt_enter_empty_does_not_send() {
     chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
     // AppEvent::CodexOpは送信されるべきでない
-    assert!(rx.try_recv().is_err(), "アプリイベントは送信されるべきでない");
+    assert!(
+        rx.try_recv().is_err(),
+        "アプリイベントは送信されるべきでない"
+    );
 }
 
 #[tokio::test]
