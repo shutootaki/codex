@@ -1,48 +1,47 @@
-//! Converting a transcript selection to clipboard text.
+//! トランスクリプト選択をクリップボードテキストに変換。
 //!
-//! Copy is driven by a content-relative selection (`TranscriptSelectionPoint`),
-//! but the transcript is rendered with styling and wrapping for the TUI. This
-//! module reconstructs clipboard text from the rendered transcript lines while
-//! preserving user expectations:
+//! コピーはコンテンツ相対選択 (`TranscriptSelectionPoint`) で駆動されるが、
+//! トランスクリプトはTUI用にスタイリングと折り返しでレンダリングされる。
+//! このモジュールはレンダリングされたトランスクリプト行からクリップボードテキストを
+//! 再構築し、ユーザーの期待を保持する:
 //!
-//! - Soft-wrapped prose is treated as a single logical line when copying.
-//! - Code blocks preserve meaningful indentation.
-//! - Markdown “source markers” are emitted when copying (backticks for inline
-//!   code, triple-backtick fences for code blocks) even if the on-screen
-//!   rendering is styled differently.
+//! - ソフト折り返しされた文章はコピー時に単一の論理行として扱われる。
+//! - コードブロックは意味のあるインデントを保持。
+//! - Markdownの「ソースマーカー」はコピー時に出力される（インラインコードにはバッククォート、
+//!   コードブロックにはトリプルバッククォートフェンス）、画面上のレンダリングが
+//!   異なるスタイルであっても。
 //!
-//! ## Inputs and invariants
+//! ## 入力と不変条件
 //!
-//! Clipboard reconstruction is performed over the same *visual lines* that are
-//! rendered in the transcript viewport:
+//! クリップボードの再構築はトランスクリプトビューポートでレンダリングされる
+//! 同じ*視覚的な行*に対して実行される:
 //!
-//! - `lines`: wrapped transcript `Line`s, including the gutter spans.
-//! - `joiner_before`: a parallel vector describing which wrapped lines are
-//!   *soft wrap* continuations (and what to insert at the wrap boundary).
-//! - `(line_index, column)` selection points in *content space* (columns exclude
-//!   the gutter).
+//! - `lines`: ガタースパンを含む折り返されたトランスクリプト `Line`。
+//! - `joiner_before`: どの折り返し行が*ソフト折り返し*の継続かを記述する
+//!   並列ベクター（折り返し境界で何を挿入するか）。
+//! - `(line_index, column)` 選択ポイントは*コンテンツ空間*内（列はガターを除外）。
 //!
-//! Callers must keep `lines` and `joiner_before` aligned. In practice, `App`
-//! obtains both from `transcript_render`, which itself builds from each cell's
-//! `HistoryCell::transcript_lines_with_joiners` implementation.
+//! 呼び出し元は `lines` と `joiner_before` を整列させておく必要がある。実際には、
+//! `App` は両方を `transcript_render` から取得し、それ自体が各セルの
+//! `HistoryCell::transcript_lines_with_joiners` 実装から構築する。
 //!
-//! ## Style-derived Markdown cues
+//! ## スタイル派生のMarkdownキュー
 //!
-//! For fidelity, we copy Markdown source markers even though the viewport may
-//! render content using styles instead of literal characters. Today, the copy
-//! logic derives "inline code" and "code block" boundaries from the styling we
-//! apply during rendering (currently cyan spans/lines).
+//! 忠実性のため、ビューポートがリテラル文字ではなくスタイルを使用してコンテンツを
+//! レンダリングしている場合でも、Markdownソースマーカーをコピーする。現在、
+//! コピーロジックはレンダリング時に適用するスタイリング（現在はシアンのスパン/行）
+//! から「インラインコード」と「コードブロック」の境界を導出する。
 //!
-//! If transcript styling changes (for example, if code blocks stop using cyan),
-//! update `is_code_block_line` and [`span_is_inline_code`] so clipboard output
-//! continues to match user expectations.
+//! トランスクリプトのスタイリングが変更された場合（例えば、コードブロックがシアンを
+//! 使用しなくなった場合）、クリップボード出力がユーザーの期待と一致し続けるよう
+//! `is_code_block_line` と [`span_is_inline_code`] を更新する。
 //!
-//! The caller can choose whether copy covers only the visible viewport range
-//! (by passing `visible_start..visible_end`) or spans the entire transcript
-//! (by passing `0..lines.len()`).
+//! 呼び出し元はコピーが可視ビューポート範囲のみをカバーするか
+//! （`visible_start..visible_end` を渡して）、トランスクリプト全体をカバーするか
+//! （`0..lines.len()` を渡して）を選択できる。
 //!
-//! UI affordances (keybinding detection and the on-screen "copy" pill) live in
-//! `transcript_copy_ui`.
+//! UIアフォーダンス（キーバインド検出と画面上の「コピー」ピル）は
+//! `transcript_copy_ui` にある。
 
 use ratatui::text::Line;
 use ratatui::text::Span;
@@ -53,12 +52,11 @@ use crate::transcript_selection::TranscriptSelection;
 use crate::transcript_selection::TranscriptSelectionPoint;
 use std::sync::Arc;
 
-/// Render the current transcript selection into clipboard text.
+/// 現在のトランスクリプト選択をクリップボードテキストにレンダリング。
 ///
-/// This is the `App`-level helper: it rebuilds wrapped transcript lines using
-/// the same rules as the on-screen viewport and then applies
-/// [`selection_to_copy_text`] across the full transcript range (including
-/// off-screen lines).
+/// これは `App` レベルのヘルパー: 画面上のビューポートと同じルールを使用して
+/// 折り返されたトランスクリプト行を再構築し、トランスクリプト全体の範囲
+/// （画面外の行を含む）に [`selection_to_copy_text`] を適用する。
 pub(crate) fn selection_to_copy_text_for_cells(
     cells: &[Arc<dyn HistoryCell>],
     selection: TranscriptSelection,
@@ -83,27 +81,26 @@ pub(crate) fn selection_to_copy_text_for_cells(
     )
 }
 
-/// Render the selected region into clipboard text.
+/// 選択された領域をクリップボードテキストにレンダリング。
 ///
-/// `lines` must be the wrapped transcript lines as rendered by the TUI,
-/// including the leading gutter spans. `start`/`end` columns are expressed in
-/// content-space (excluding the gutter), and will be ordered internally if the
-/// endpoints are reversed.
+/// `lines` はTUIでレンダリングされた折り返しトランスクリプト行で、
+/// 先頭のガタースパンを含む必要がある。`start`/`end` 列はコンテンツ空間で
+/// 表現され（ガターを除外）、エンドポイントが逆の場合は内部で順序付けされる。
 ///
-/// `joiner_before[i]` is the exact string to insert *before* `lines[i]` when
-/// it is a continuation of a soft-wrapped prose line. This enables copy to
-/// treat soft-wrapped prose as a single logical line.
+/// `joiner_before[i]` はソフト折り返しされた文章行の継続である場合に
+/// `lines[i]` の*前に*挿入する正確な文字列。これによりコピーが
+/// ソフト折り返しされた文章を単一の論理行として扱える。
 ///
-/// Notes:
+/// 注意:
 ///
-/// - For code/preformatted runs, copy is permitted to extend beyond the
-///   viewport width when the user selects “to the right edge”, so we avoid
-///   producing truncated logical lines in narrow terminals.
-/// - Markdown markers are derived from render-time styles (see module docs).
-/// - Column math is display-width-aware (wide glyphs count as multiple columns).
+/// - コード/事前整形のランについて、ユーザーが「右端まで」を選択した場合、
+///   ビューポート幅を超えて拡張することが許可され、狭いターミナルで
+///   切り詰められた論理行を生成しないようにする。
+/// - Markdownマーカーはレンダリング時のスタイルから導出される（モジュールドキュメント参照）。
+/// - 列計算は表示幅を認識（ワイドグリフは複数列としてカウント）。
 ///
-/// Returns `None` if the inputs imply an empty selection or if `width` is too
-/// small to contain the gutter plus at least one content column.
+/// 入力が空の選択を意味する場合、または `width` がガター + 少なくとも1つの
+/// コンテンツ列を含むには小さすぎる場合、`None` を返す。
 pub(crate) fn selection_to_copy_text(
     lines: &[Line<'static>],
     joiner_before: &[Option<String>],
@@ -119,49 +116,49 @@ pub(crate) fn selection_to_copy_text(
         return None;
     }
 
-    // Selection points are expressed in content-relative coordinates and may be provided in either
-    // direction (dragging "backwards"). Normalize to a forward `(start, end)` pair so the rest of
-    // the logic can assume `start <= end`.
+    // 選択ポイントはコンテンツ相対座標で表現され、どちらの方向でも提供される可能性がある
+    // （「逆方向に」ドラッグ）。残りのロジックが `start <= end` を仮定できるよう、
+    // 順方向の `(start, end)` ペアに正規化。
     let (start, end) = order_points(start, end);
     if start == end {
         return None;
     }
 
-    // Transcript `Line`s include a left gutter (bullet/prefix space). Selection columns exclude the
-    // gutter, so we translate selection columns to absolute columns by adding `base_x`.
+    // トランスクリプト `Line` は左ガター（バレット/プレフィックススペース）を含む。
+    // 選択列はガターを除外するため、`base_x` を加算して選択列を絶対列に変換。
     let base_x = TRANSCRIPT_GUTTER_COLS;
     let max_x = width.saturating_sub(1);
 
     let mut out = String::new();
     let mut prev_selected_line: Option<usize> = None;
 
-    // We emit Markdown fences around runs of code/preformatted visual lines so:
-    // - the clipboard captures source-style markers (` ``` `) even if the viewport is stylized
-    // - indentation is preserved and paste is stable in editors
+    // コード/事前整形された視覚的な行のランの周囲にMarkdownフェンスを出力:
+    // - ビューポートがスタイル化されていてもクリップボードがソーススタイルマーカー (` ``` `) をキャプチャ
+    // - インデントが保持され、エディタでのペーストが安定
     let mut in_code_run = false;
 
-    // `wrote_any` lets us handle separators (newline or soft-wrap joiner) without special-casing
-    // "first output line" at every decision point.
+    // `wrote_any` により、すべての決定ポイントで「最初の出力行」を特別扱いせずに
+    // セパレーター（改行またはソフト折り返しジョイナー）を処理できる。
     let mut wrote_any = false;
 
     for line_index in visible_start..visible_end {
-        // Only consider lines that intersect the selection's line range. (Selection endpoints are
-        // clamped elsewhere; if the indices don't exist, `lines.get(...)` returns `None`.)
+        // 選択の行範囲と交差する行のみを考慮。（選択エンドポイントは他の場所でクランプされる。
+        // インデックスが存在しない場合、`lines.get(...)` は `None` を返す。）
         if line_index < start.line_index || line_index > end.line_index {
             continue;
         }
 
         let line = lines.get(line_index)?;
 
-        // Code blocks (and other preformatted content) are detected via styling and copied as
-        // "verbatim lines" (no inline Markdown re-encoding). This also enables special handling for
-        // narrow terminals: selecting "to the right edge" should copy the full logical line, not a
-        // viewport-truncated slice.
+        // コードブロック（およびその他の事前整形コンテンツ）はスタイリングで検出され、
+        // 「逐語的な行」としてコピーされる（インラインMarkdownの再エンコードなし）。
+        // これにより狭いターミナルでの特別な処理も可能: 「右端まで」を選択すると
+        // ビューポートで切り詰められたスライスではなく、完全な論理行をコピーする。
         let is_code_block_line = line.style.fg == Some(Color::Cyan);
 
-        // Flatten the line to compute the rightmost non-space column. We use that to:
-        // - avoid copying trailing right-margin padding
-        // - clamp prose selection to the viewport width
+        // 行をフラット化して最右の非スペース列を計算。これを使用して:
+        // - 末尾の右マージンパディングのコピーを回避
+        // - 文章選択をビューポート幅にクランプ
         let flat = line_to_flat(line);
         let text_end = if is_code_block_line {
             last_non_space_col(flat.as_str())
@@ -169,10 +166,10 @@ pub(crate) fn selection_to_copy_text(
             last_non_space_col(flat.as_str()).map(|c| c.min(max_x))
         };
 
-        // Convert selection endpoints into a selection range for this specific visual line:
-        // - first line clamps the start column
-        // - last line clamps the end column
-        // - intermediate lines select the full line.
+        // 選択エンドポイントをこの特定の視覚的な行の選択範囲に変換:
+        // - 最初の行は開始列をクランプ
+        // - 最後の行は終了列をクランプ
+        // - 中間の行は行全体を選択。
         let line_start_col = if line_index == start.line_index {
             start.column
         } else {
@@ -186,9 +183,9 @@ pub(crate) fn selection_to_copy_text(
 
         let row_sel_start = base_x.saturating_add(line_start_col).min(max_x);
 
-        // For code/preformatted lines, treat "selection ends at the viewport edge" as a special
-        // "copy to end of logical line" case. This prevents narrow terminals from producing
-        // truncated clipboard content when the user drags to the right edge.
+        // コード/事前整形行の場合、「選択がビューポートの端で終わる」を特別な
+        // 「論理行の終わりまでコピー」ケースとして扱う。これにより狭いターミナルで
+        // ユーザーが右端にドラッグしたとき、切り詰められたクリップボードコンテンツを生成しない。
         let row_sel_end = if is_code_block_line && line_end_col >= max_x.saturating_sub(base_x) {
             u16::MAX
         } else {
@@ -210,13 +207,13 @@ pub(crate) fn selection_to_copy_text(
             Line::default().style(line.style)
         };
 
-        // Convert the selected `Line` into Markdown source:
-        // - For prose: wrap inline-code spans in backticks.
-        // - For code blocks: return the raw flat text so we preserve indentation/spacing.
+        // 選択された `Line` をMarkdownソースに変換:
+        // - 文章の場合: インラインコードスパンをバッククォートで囲む。
+        // - コードブロックの場合: インデント/スペースを保持するため生のフラットテキストを返す。
         let line_text = line_to_markdown(&selected_line, is_code_block_line);
 
-        // Track transitions into/out of code/preformatted runs and emit triple-backtick fences.
-        // We always separate a code run from prior prose with a newline.
+        // コード/事前整形ランへの/からの遷移を追跡し、トリプルバッククォートフェンスを出力。
+        // コードランは常に改行で先行する文章から分離。
         if is_code_block_line && !in_code_run {
             if wrote_any {
                 out.push('\n');
@@ -235,9 +232,8 @@ pub(crate) fn selection_to_copy_text(
             wrote_any = true;
         }
 
-        // When copying inside a code run, every selected visual line becomes a literal line inside
-        // the fence (no soft-wrap joining). We preserve explicit blank lines by writing empty
-        // strings as a line.
+        // コードラン内でコピーするとき、選択された各視覚的な行はフェンス内のリテラル行になる
+        // （ソフト折り返しの結合なし）。空文字列を行として書き込むことで明示的な空行を保持。
         if in_code_run {
             if wrote_any && (!out.ends_with('\n') || prev_selected_line.is_some()) {
                 out.push('\n');
@@ -248,10 +244,10 @@ pub(crate) fn selection_to_copy_text(
             continue;
         }
 
-        // Prose path:
-        // - If this line is a soft-wrap continuation of the previous selected line, insert the
-        //   recorded joiner (often spaces) instead of a newline.
-        // - Otherwise, insert a newline to preserve hard breaks.
+        // 文章パス:
+        // - この行が前の選択行のソフト折り返し継続の場合、改行の代わりに
+        //   記録されたジョイナー（多くの場合スペース）を挿入。
+        // - それ以外の場合、ハード改行を保持するために改行を挿入。
         if wrote_any {
             let joiner = joiner_before.get(line_index).cloned().unwrap_or(None);
             if prev_selected_line == Some(line_index.saturating_sub(1))
@@ -276,10 +272,10 @@ pub(crate) fn selection_to_copy_text(
     (!out.is_empty()).then_some(out)
 }
 
-/// Order two selection endpoints into `(start, end)` in transcript order.
+/// 2つの選択エンドポイントをトランスクリプト順序で `(start, end)` に順序付け。
 ///
-/// Dragging can produce reversed endpoints; callers typically want a normalized range before
-/// iterating visual lines.
+/// ドラッグは逆順のエンドポイントを生成する可能性がある。呼び出し元は通常、
+/// 視覚的な行を反復処理する前に正規化された範囲を望む。
 fn order_points(
     a: TranscriptSelectionPoint,
     b: TranscriptSelectionPoint,
@@ -291,9 +287,9 @@ fn order_points(
     }
 }
 
-/// Flatten a styled `Line` into its plain text content.
+/// スタイル付き `Line` をプレーンテキストコンテンツにフラット化。
 ///
-/// This is used for cursor/column arithmetic and for emitting plain-text code lines.
+/// カーソル/列の計算およびプレーンテキストのコード行の出力に使用。
 fn line_to_flat(line: &Line<'_>) -> String {
     line.spans
         .iter()
@@ -301,12 +297,12 @@ fn line_to_flat(line: &Line<'_>) -> String {
         .collect::<String>()
 }
 
-/// Return the last non-space *display column* in `flat` (inclusive).
+/// `flat` 内の最後の非スペース*表示列*を返す（包含的）。
 ///
-/// This is display-width-aware, so wide glyphs (e.g. CJK) advance by more than one column.
+/// 表示幅を認識するため、ワイドグリフ（例: CJK）は複数列進む。
 ///
-/// Rationale: transcript rendering often pads out to the viewport width; copy should avoid
-/// including that right-margin whitespace.
+/// 理由: トランスクリプトレンダリングはビューポート幅までパディングすることが多い。
+/// コピーはその右マージンの空白を含めないべき。
 fn last_non_space_col(flat: &str) -> Option<u16> {
     use unicode_width::UnicodeWidthChar;
 
@@ -323,24 +319,24 @@ fn last_non_space_col(flat: &str) -> Option<u16> {
     last
 }
 
-/// Map a display-column range to a UTF-8 byte range within `flat`.
+/// 表示列範囲を `flat` 内のUTF-8バイト範囲にマッピング。
 ///
-/// The returned range is suitable for slicing `flat` and for slicing the original `Span` strings
-/// (once translated into span-local offsets).
+/// 返される範囲は `flat` のスライスおよび元の `Span` 文字列のスライスに適している
+/// （スパンローカルオフセットに変換後）。
 ///
-/// This walks Unicode scalar values and advances by display width so callers can slice based on the
-/// same column semantics the selection model uses.
+/// Unicodeスカラー値をウォークし、表示幅で進むため、呼び出し元は
+/// 選択モデルが使用するのと同じ列セマンティクスに基づいてスライスできる。
 fn byte_range_for_cols(flat: &str, start_col: u16, end_col: u16) -> Option<std::ops::Range<usize>> {
     use unicode_width::UnicodeWidthChar;
 
-    // We translate selection columns (display columns, not bytes) into a UTF-8 byte range. This is
-    // intentionally Unicode-width aware: wide glyphs cover multiple columns but occupy one `char`
-    // and several bytes.
+    // 選択列（バイトではなく表示列）をUTF-8バイト範囲に変換。これは意図的に
+    // Unicode幅を認識: ワイドグリフは複数列をカバーするが、1つの `char` と
+    // 数バイトを占める。
     //
-    // Strategy:
-    // - Walk `flat` by `char_indices()` while tracking the current display column.
-    // - The start byte is the first char whose rendered columns intersect `start_col`.
-    // - The end byte is the end of the last char whose rendered columns intersect `end_col`.
+    // 戦略:
+    // - `char_indices()` で `flat` をウォークしながら現在の表示列を追跡。
+    // - 開始バイトはレンダリングされた列が `start_col` と交差する最初の文字。
+    // - 終了バイトはレンダリングされた列が `end_col` と交差する最後の文字の終わり。
     let mut col: u16 = 0;
     let mut start_byte: Option<usize> = None;
     let mut end_byte: Option<usize> = None;
@@ -349,13 +345,13 @@ fn byte_range_for_cols(flat: &str, start_col: u16, end_col: u16) -> Option<std::
         let w = UnicodeWidthChar::width(ch).unwrap_or(0) as u16;
         let end = col.saturating_add(w.saturating_sub(1));
 
-        // Start is inclusive: select the first glyph whose right edge reaches the start column.
+        // 開始は包含的: 右端が開始列に到達する最初のグリフを選択。
         if start_byte.is_none() && end >= start_col {
             start_byte = Some(idx);
         }
 
-        // End is inclusive in column space; keep extending end byte while we're still at/before
-        // `end_col`. This includes a wide glyph even if it starts before `end_col` but ends after.
+        // 終了は列空間で包含的。`end_col` 以前の間は終了バイトを拡張し続ける。
+        // これは `end_col` の前に始まるが後に終わるワイドグリフも含む。
         if col <= end_col {
             end_byte = Some(idx + ch.len_utf8());
         }
@@ -372,17 +368,17 @@ fn byte_range_for_cols(flat: &str, start_col: u16, end_col: u16) -> Option<std::
     }
 }
 
-/// Slice a styled `Line` by display columns, preserving per-span style.
+/// スタイル付き `Line` を表示列でスライスし、スパンごとのスタイルを保持。
 ///
-/// This is the core "selection → styled substring" helper used before Markdown re-encoding. It
-/// avoids mixing styles across spans by slicing each contributing span independently, then
-/// reassembling them into a new `Line` with the original line-level style.
+/// これはMarkdown再エンコード前に使用されるコア「選択 → スタイル付きサブストリング」ヘルパー。
+/// 各貢献スパンを独立してスライスすることでスパン間のスタイル混合を回避し、
+/// 元の行レベルスタイルで新しい `Line` に再組み立て。
 fn slice_line_by_cols(line: &Line<'static>, start_col: u16, end_col: u16) -> Line<'static> {
-    // `Line` spans store independent string slices with their own styles. To slice by columns while
-    // preserving styling, we:
-    // 1) Flatten the line and compute the desired UTF-8 byte range in the flattened string.
-    // 2) Compute each span's byte range within the flattened string.
-    // 3) Intersect the selection range with each span range and slice per-span, preserving styles.
+    // `Line` スパンは独自のスタイルを持つ独立した文字列スライスを格納。スタイリングを
+    // 保持しながら列でスライスするため:
+    // 1) 行をフラット化し、フラット化された文字列で目的のUTF-8バイト範囲を計算。
+    // 2) フラット化された文字列内の各スパンのバイト範囲を計算。
+    // 3) 選択範囲と各スパン範囲を交差させ、スパンごとにスライスしてスタイルを保持。
     let flat = line_to_flat(line);
     let mut span_bounds: Vec<(std::ops::Range<usize>, ratatui::style::Style)> = Vec::new();
     let mut acc = 0usize;
@@ -397,7 +393,7 @@ fn slice_line_by_cols(line: &Line<'static>, start_col: u16, end_col: u16) -> Lin
         return Line::default().style(line.style);
     };
 
-    // Translate the flattened byte range back into (span-local) slices.
+    // フラット化されたバイト範囲を（スパンローカル）スライスに逆変換。
     let start_byte = range.start;
     let end_byte = range.end;
     let mut spans: Vec<ratatui::text::Span<'static>> = Vec::new();
@@ -428,10 +424,10 @@ fn slice_line_by_cols(line: &Line<'static>, start_col: u16, end_col: u16) -> Lin
     Line::from(spans).style(line.style)
 }
 
-/// Whether a span should be treated as "inline code" when reconstructing Markdown.
+/// Markdownを再構築する際に、スパンを「インラインコード」として扱うかどうか。
 ///
-/// TUI2 renders inline code using a cyan foreground. Links also use cyan, but are underlined, so we
-/// exclude underlined cyan spans to avoid wrapping links in backticks.
+/// TUI2はシアン前景を使用してインラインコードをレンダリング。リンクもシアンを使用するが
+/// 下線付きなので、リンクをバッククォートで囲まないよう下線付きシアンスパンを除外。
 fn span_is_inline_code(span: &Span<'_>) -> bool {
     use ratatui::style::Color;
 
@@ -442,11 +438,11 @@ fn span_is_inline_code(span: &Span<'_>) -> bool {
             .contains(ratatui::style::Modifier::UNDERLINED)
 }
 
-/// Convert a selected, styled `Line` back into Markdown-ish source text.
+/// 選択されたスタイル付き `Line` をMarkdown風のソーステキストに逆変換。
 ///
-/// - For prose: wraps runs of inline-code spans in backticks to preserve the source marker.
-/// - For code blocks: emits the raw flat text (no additional escaping), since the entire run will
-///   be wrapped in triple-backtick fences by the caller.
+/// - 文章の場合: ソースマーカーを保持するためインラインコードスパンのランをバッククォートで囲む。
+/// - コードブロックの場合: 呼び出し元がラン全体をトリプルバッククォートフェンスで囲むため、
+///   生のフラットテキストを出力（追加エスケープなし）。
 fn line_to_markdown(line: &Line<'static>, is_code_block: bool) -> String {
     if is_code_block {
         return line_to_flat(line);
@@ -648,7 +644,7 @@ mod tests {
 
     #[test]
     fn last_non_space_col_counts_display_width() {
-        // "コ" is width 2, so "コX" occupies columns 0..=2.
+        // 「コ」は幅2なので、「コX」は列0..=2を占める。
         assert_eq!(last_non_space_col("コX"), Some(2));
         assert_eq!(last_non_space_col("a  "), Some(0));
         assert_eq!(last_non_space_col("   "), None);
@@ -674,7 +670,7 @@ mod tests {
             "world".green(),
         ]);
 
-        // Slice "llo wo" (crosses span boundaries).
+        // 「llo wo」をスライス（スパン境界を跨ぐ）。
         let sliced = slice_line_by_cols(&line, 4, 9);
         assert_eq!(line_to_flat(&sliced), "llo wo");
         assert_eq!(sliced.spans.len(), 3);

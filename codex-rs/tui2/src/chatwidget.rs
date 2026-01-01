@@ -143,7 +143,7 @@ use strum::IntoEnumIterator;
 
 const USER_SHELL_COMMAND_HELP_TITLE: &str = "Prefix a command with ! to run it locally";
 const USER_SHELL_COMMAND_HELP_HINT: &str = "Example: !ls";
-// Track information about an in-flight exec command.
+// 実行中のexecコマンドに関する情報を追跡。
 struct RunningCommand {
     command: Vec<String>,
     parsed_cmd: Vec<ParsedCommand>,
@@ -255,7 +255,7 @@ pub(crate) fn get_limits_duration(windows_minutes: i64) -> String {
     }
 }
 
-/// Common initialization parameters shared by all `ChatWidget` constructors.
+/// すべての`ChatWidget`コンストラクタで共有される共通の初期化パラメータ。
 pub(crate) struct ChatWidgetInit {
     pub(crate) config: Config,
     pub(crate) frame_requester: FrameRequester,
@@ -295,45 +295,45 @@ pub(crate) struct ChatWidget {
     rate_limit_warnings: RateLimitWarningState,
     rate_limit_switch_prompt: RateLimitSwitchPromptState,
     rate_limit_poller: Option<JoinHandle<()>>,
-    // Stream lifecycle controller
+    // ストリームライフサイクルコントローラ
     stream_controller: Option<StreamController>,
     running_commands: HashMap<String, RunningCommand>,
     suppressed_exec_calls: HashSet<String>,
     last_unified_wait: Option<UnifiedExecWaitState>,
     task_complete_pending: bool,
     mcp_startup_status: Option<HashMap<String, McpStartupStatus>>,
-    // Queue of interruptive UI events deferred during an active write cycle
+    // アクティブな書き込みサイクル中に遅延された割り込みUIイベントのキュー
     interrupts: InterruptManager,
-    // Accumulates the current reasoning block text to extract a header
+    // ヘッダーを抽出するための現在の推論ブロックテキストを蓄積
     reasoning_buffer: String,
-    // Accumulates full reasoning content for transcript-only recording
+    // トランスクリプト専用記録のための完全な推論コンテンツを蓄積
     full_reasoning_buffer: String,
-    // Current status header shown in the status indicator.
+    // ステータスインジケータに表示される現在のステータスヘッダー。
     current_status_header: String,
-    // Previous status header to restore after a transient stream retry.
+    // 一時的なストリームリトライ後に復元する前のステータスヘッダー。
     retry_status_header: Option<String>,
     conversation_id: Option<ConversationId>,
     frame_requester: FrameRequester,
-    // Whether to include the initial welcome banner on session configured
+    // セッション設定時に初期ウェルカムバナーを含めるかどうか
     show_welcome_banner: bool,
-    // When resuming an existing session (selected via resume picker), avoid an
-    // immediate redraw on SessionConfigured to prevent a gratuitous UI flicker.
+    // 既存のセッションを再開する場合（リジュームピッカーで選択）、
+    // SessionConfiguredでの即時再描画を避けて不要なUIフリッカーを防止。
     suppress_session_configured_redraw: bool,
-    // User messages queued while a turn is in progress
+    // ターン進行中にキューに入れられたユーザーメッセージ
     queued_user_messages: VecDeque<UserMessage>,
-    // Pending notification to show when unfocused on next Draw
+    // 次のDrawでフォーカスが外れた時に表示する保留中の通知
     pending_notification: Option<Notification>,
-    // Simple review mode flag; used to adjust layout and banners.
+    // シンプルなレビューモードフラグ; レイアウトとバナーの調整に使用。
     is_review_mode: bool,
-    // Snapshot of token usage to restore after review mode exits.
+    // レビューモード終了後に復元するトークン使用量のスナップショット。
     pre_review_token_info: Option<Option<TokenUsageInfo>>,
-    // Whether to add a final message separator after the last message
+    // 最後のメッセージの後に最終メッセージセパレータを追加するかどうか
     needs_final_message_separator: bool,
 
     last_rendered_width: std::cell::Cell<Option<usize>>,
-    // Feedback sink for /feedback
+    // /feedback用のフィードバックシンク
     feedback: codex_feedback::CodexFeedback,
-    // Current session rollout path (if known)
+    // 現在のセッションロールアウトパス（既知の場合）
     current_rollout_path: Option<PathBuf>,
 }
 
@@ -377,16 +377,16 @@ impl ChatWidget {
         }
     }
 
-    /// Update the status indicator header and details.
+    /// ステータスインジケータのヘッダーと詳細を更新。
     ///
-    /// Passing `None` clears any existing details.
+    /// `None`を渡すと既存の詳細をクリア。
     fn set_status(&mut self, header: String, details: Option<String>) {
         self.current_status_header = header.clone();
         self.bottom_pane.update_status(header, details);
     }
 
-    /// Convenience wrapper around [`Self::set_status`];
-    /// updates the status indicator header and clears any existing details.
+    /// [`Self::set_status`]の便利なラッパー;
+    /// ステータスインジケータのヘッダーを更新し既存の詳細をクリア。
     fn set_status_header(&mut self, header: String) {
         self.set_status(header, None);
     }
@@ -397,7 +397,7 @@ impl ChatWidget {
         }
     }
 
-    // --- Small event handlers ---
+    // --- 小さなイベントハンドラー ---
     fn on_session_configured(&mut self, event: codex_core::protocol::SessionConfiguredEvent) {
         self.bottom_pane
             .set_history_metadata(event.history_log_id, event.history_entry_count);
@@ -416,7 +416,7 @@ impl ChatWidget {
         if let Some(messages) = initial_messages {
             self.replay_initial_messages(messages);
         }
-        // Ask codex-core to enumerate custom prompts for this session.
+        // このセッションのカスタムプロンプトを列挙するようcodex-coreに依頼。
         self.submit_op(Op::ListCustomPrompts);
         self.submit_op(Op::ListSkills {
             cwds: Vec::new(),
@@ -444,7 +444,7 @@ impl ChatWidget {
         category: crate::app_event::FeedbackCategory,
         include_logs: bool,
     ) {
-        // Build a fresh snapshot at the time of opening the note overlay.
+        // ノートオーバーレイを開く時点で新しいスナップショットを構築。
         let snapshot = self.feedback.snapshot(self.conversation_id);
         let rollout = if include_logs {
             self.current_rollout_path.clone()
@@ -473,8 +473,8 @@ impl ChatWidget {
     }
 
     fn on_agent_message(&mut self, message: String) {
-        // If we have a stream_controller, then the final agent message is redundant and will be a
-        // duplicate of what has already been streamed.
+        // stream_controllerがある場合、最終的なエージェントメッセージは冗長で、
+        // すでにストリームされたものの重複になる。
         if self.stream_controller.is_none() {
             self.handle_streaming_delta(message);
         }
@@ -488,22 +488,22 @@ impl ChatWidget {
     }
 
     fn on_agent_reasoning_delta(&mut self, delta: String) {
-        // For reasoning deltas, do not stream to history. Accumulate the
-        // current reasoning block and extract the first bold element
-        // (between **/**) as the chunk header. Show this header as status.
+        // 推論デルタでは履歴にストリームしない。現在の推論ブロックを蓄積し、
+        // 最初の太字要素（**/**の間）をチャンクヘッダーとして抽出。
+        // このヘッダーをステータスとして表示。
         self.reasoning_buffer.push_str(&delta);
 
         if let Some(header) = extract_first_bold(&self.reasoning_buffer) {
-            // Update the shimmer header to the extracted reasoning chunk header.
+            // シマーヘッダーを抽出された推論チャンクヘッダーに更新。
             self.set_status_header(header);
         } else {
-            // Fallback while we don't yet have a bold header: leave existing header as-is.
+            // 太字ヘッダーがまだない間のフォールバック: 既存のヘッダーをそのまま維持。
         }
         self.request_redraw();
     }
 
     fn on_agent_reasoning_final(&mut self) {
-        // At the end of a reasoning block, record transcript-only content.
+        // 推論ブロックの終わりで、トランスクリプト専用コンテンツを記録。
         self.full_reasoning_buffer.push_str(&self.reasoning_buffer);
         if !self.full_reasoning_buffer.is_empty() {
             let cell =
@@ -516,13 +516,13 @@ impl ChatWidget {
     }
 
     fn on_reasoning_section_break(&mut self) {
-        // Start a new reasoning block for header extraction and accumulate transcript.
+        // ヘッダー抽出用の新しい推論ブロックを開始しトランスクリプトを蓄積。
         self.full_reasoning_buffer.push_str(&self.reasoning_buffer);
         self.full_reasoning_buffer.push_str("\n\n");
         self.reasoning_buffer.clear();
     }
 
-    // Raw reasoning uses the same flow as summarized reasoning
+    // 生の推論は要約された推論と同じフローを使用
 
     fn on_task_started(&mut self) {
         self.bottom_pane.clear_ctrl_c_quit_hint();
@@ -536,18 +536,18 @@ impl ChatWidget {
     }
 
     fn on_task_complete(&mut self, last_agent_message: Option<String>) {
-        // If a stream is currently active, finalize it.
+        // ストリームが現在アクティブな場合、それを確定。
         self.flush_answer_stream_with_separator();
-        // Mark task stopped and request redraw now that all content is in history.
+        // タスク停止をマークし、すべてのコンテンツが履歴に入ったので再描画を要求。
         self.bottom_pane.set_task_running(false);
         self.running_commands.clear();
         self.suppressed_exec_calls.clear();
         self.last_unified_wait = None;
         self.request_redraw();
 
-        // If there is a queued user message, send exactly one now to begin the next turn.
+        // キューにユーザーメッセージがある場合、次のターンを開始するために1つだけ送信。
         self.maybe_send_next_queued_input();
-        // Emit a notification when the turn completes (suppressed if focused).
+        // ターン完了時に通知を発行（フォーカス中は抑制）。
         self.notify(Notification::AgentTurnComplete {
             response: last_agent_message.unwrap_or_default(),
         });
@@ -668,11 +668,11 @@ impl ChatWidget {
             self.rate_limit_snapshot = None;
         }
     }
-    /// Finalize any active exec as failed and stop/clear running UI state.
+    /// アクティブなexecを失敗として確定し、実行中のUI状態を停止/クリア。
     fn finalize_turn(&mut self) {
-        // Ensure any spinner is replaced by a red ✗ and flushed into history.
+        // スピナーを赤い✗に置き換えて履歴にフラッシュすることを確認。
         self.finalize_active_cell_as_failed();
-        // Reset running state and clear streaming buffers.
+        // 実行状態をリセットしストリーミングバッファをクリア。
         self.bottom_pane.set_task_running(false);
         self.running_commands.clear();
         self.suppressed_exec_calls.clear();
@@ -689,7 +689,7 @@ impl ChatWidget {
         self.add_to_history(history_cell::new_error_event(message));
         self.request_redraw();
 
-        // After an error ends the turn, try sending the next queued input.
+        // エラーでターンが終了した後、次のキューに入れられた入力を送信してみる。
         self.maybe_send_next_queued_input();
     }
 
@@ -766,11 +766,11 @@ impl ChatWidget {
         self.request_redraw();
     }
 
-    /// Handle a turn aborted due to user interrupt (Esc).
-    /// When there are queued user messages, restore them into the composer
-    /// separated by newlines rather than auto‑submitting the next one.
+    /// ユーザー割り込み（Esc）によるターン中断を処理。
+    /// キューに入れられたユーザーメッセージがある場合、次を自動送信するのではなく
+    /// 改行で区切ってコンポーザに復元。
     fn on_interrupted_turn(&mut self, reason: TurnAbortReason) {
-        // Finalize, log a gentle prompt, and clear running state.
+        // 確定し、穏やかなプロンプトをログに記録し、実行状態をクリア。
         self.finalize_turn();
 
         if reason != TurnAbortReason::ReviewEnded {
@@ -779,7 +779,7 @@ impl ChatWidget {
             ));
         }
 
-        // If any messages were queued during the task, restore them into the composer.
+        // タスク中にメッセージがキューに入れられていた場合、コンポーザに復元。
         if !self.queued_user_messages.is_empty() {
             let queued_text = self
                 .queued_user_messages
@@ -796,7 +796,7 @@ impl ChatWidget {
                 format!("{queued_text}\n{existing_text}")
             };
             self.bottom_pane.set_composer_text(combined);
-            // Clear the queue and update the status indicator list.
+            // キューをクリアしステータスインジケータリストを更新。
             self.queued_user_messages.clear();
             self.refresh_queued_user_messages();
         }
@@ -844,11 +844,11 @@ impl ChatWidget {
         &mut self,
         _ev: codex_core::protocol::ExecCommandOutputDeltaEvent,
     ) {
-        // TODO: Handle streaming exec output if/when implemented
+        // TODO: 実装された場合にストリーミングexec出力を処理
     }
 
     fn on_terminal_interaction(&mut self, _ev: TerminalInteractionEvent) {
-        // TODO: Handle once design is ready
+        // TODO: 設計が準備できたら処理
     }
 
     fn on_patch_apply_begin(&mut self, event: PatchApplyBeginEvent) {
@@ -966,8 +966,8 @@ impl ChatWidget {
         self.set_status(message, additional_details);
     }
 
-    /// Periodic tick to commit at most one queued line to history with a small delay,
-    /// animating the output.
+    /// 少しの遅延でキューに入れられた行を最大1つ履歴にコミットする定期ティック、
+    /// 出力をアニメーション化。
     pub(crate) fn on_commit_tick(&mut self) {
         if let Some(controller) = self.stream_controller.as_mut() {
             let (cell, is_idle) = controller.on_commit_tick();
@@ -993,9 +993,9 @@ impl ChatWidget {
         push: impl FnOnce(&mut InterruptManager),
         handle: impl FnOnce(&mut Self),
     ) {
-        // Preserve deterministic FIFO across queued interrupts: once anything
-        // is queued due to an active write cycle, continue queueing until the
-        // queue is flushed to avoid reordering (e.g., ExecEnd before ExecBegin).
+        // キューに入れられた割り込み間で決定論的FIFOを保持: アクティブな書き込みサイクルにより
+        // 何かがキューに入れられると、順序の入れ替え（例: ExecBeginの前にExecEnd）を
+        // 避けるためにキューがフラッシュされるまでキューイングを続行。
         if self.stream_controller.is_some() || !self.interrupts.is_empty() {
             push(&mut self.interrupts);
         } else {
@@ -1008,13 +1008,13 @@ impl ChatWidget {
             self.bottom_pane.hide_status_indicator();
             self.task_complete_pending = false;
         }
-        // A completed stream indicates non-exec content was just inserted.
+        // 完了したストリームは非execコンテンツが挿入されたことを示す。
         self.flush_interrupt_queue();
     }
 
     #[inline]
     fn handle_streaming_delta(&mut self, delta: String) {
-        // Before streaming agent content, flush any active exec cell group.
+        // エージェントコンテンツをストリームする前に、アクティブなexecセルグループをフラッシュ。
         self.flush_active_cell();
 
         if self.stream_controller.is_none() {
@@ -1096,8 +1096,8 @@ impl ChatWidget {
         &mut self,
         event: codex_core::protocol::PatchApplyEndEvent,
     ) {
-        // If the patch was successful, just let the "Edited" block stand.
-        // Otherwise, add a failure block.
+        // パッチが成功した場合は「Edited」ブロックをそのままにする。
+        // そうでなければ失敗ブロックを追加。
         if !event.success {
             self.add_to_history(history_cell::new_patch_apply_failure(event.stderr));
         }
@@ -1160,7 +1160,7 @@ impl ChatWidget {
     }
 
     pub(crate) fn handle_exec_begin_now(&mut self, ev: ExecCommandBeginEvent) {
-        // Ensure the status indicator is visible while the command runs.
+        // コマンド実行中はステータスインジケータが表示されていることを確認。
         self.running_commands.insert(
             ev.call_id.clone(),
             RunningCommand {
@@ -1348,7 +1348,7 @@ impl ChatWidget {
         widget
     }
 
-    /// Create a ChatWidget attached to an existing conversation (e.g., a fork).
+    /// 既存の会話（例: フォーク）にアタッチされたChatWidgetを作成。
     pub(crate) fn new_from_existing(
         common: ChatWidgetInit,
         conversation: std::sync::Arc<codex_core::CodexConversation>,
@@ -1483,7 +1483,7 @@ impl ChatWidget {
                 kind: KeyEventKind::Press,
                 ..
             } if !self.queued_user_messages.is_empty() => {
-                // Prefer the most recently queued item.
+                // 最近キューに入れられたアイテムを優先。
                 if let Some(user_message) = self.queued_user_messages.pop_back() {
                     self.bottom_pane.set_composer_text(user_message.text);
                     self.refresh_queued_user_messages();
@@ -1493,7 +1493,7 @@ impl ChatWidget {
             _ => {
                 match self.bottom_pane.handle_key_event(key_event) {
                     InputResult::Submitted(text) => {
-                        // If a task is running, queue the user input to be sent after the turn completes.
+                        // タスクが実行中の場合、ターン完了後に送信するためユーザー入力をキューに入れる。
                         let user_message = UserMessage {
                             text,
                             image_paths: self.bottom_pane.take_recent_submission_images(),
@@ -1536,7 +1536,7 @@ impl ChatWidget {
         }
         match cmd {
             SlashCommand::Feedback => {
-                // Step 1: pick a category (UI built in feedback_view)
+                // ステップ1: カテゴリを選択（feedback_viewでUIを構築）
                 let params =
                     crate::bottom_pane::feedback_selection_params(self.app_event_tx.clone());
                 self.bottom_pane.show_selection_view(params);
@@ -1672,15 +1672,15 @@ impl ChatWidget {
         self.bottom_pane.handle_paste(text);
     }
 
-    // Returns true if caller should skip rendering this frame (a future frame is scheduled).
+    // 呼び出し元がこのフレームのレンダリングをスキップすべきかを返す（将来のフレームがスケジュールされている場合）。
     pub(crate) fn handle_paste_burst_tick(&mut self, frame_requester: FrameRequester) -> bool {
         if self.bottom_pane.flush_paste_burst_if_due() {
-            // A paste just flushed; request an immediate redraw and skip this frame.
+            // ペーストがフラッシュされた; 即時再描画を要求しこのフレームをスキップ。
             self.request_redraw();
             true
         } else if self.bottom_pane.is_in_paste_burst() {
-            // While capturing a burst, schedule a follow-up tick and skip this frame
-            // to avoid redundant renders between ticks.
+            // バースト取得中は、ティック間の冗長なレンダーを避けるため
+            // フォローアップティックをスケジュールしこのフレームをスキップ。
             frame_requester.schedule_frame_in(
                 crate::bottom_pane::ChatComposer::recommended_paste_flush_delay(),
             );
@@ -1703,7 +1703,7 @@ impl ChatWidget {
 
     fn add_boxed_history(&mut self, cell: Box<dyn HistoryCell>) {
         if !cell.display_lines(u16::MAX).is_empty() {
-            // Only break exec grouping if the cell renders visible lines.
+            // セルが可視行をレンダリングする場合のみexecグループ化を解除。
             self.flush_active_cell();
             self.needs_final_message_separator = true;
         }
@@ -1727,7 +1727,7 @@ impl ChatWidget {
 
         let mut items: Vec<UserInput> = Vec::new();
 
-        // Special-case: "!cmd" executes a local shell command instead of sending to the model.
+        // 特殊ケース: "!cmd"はモデルに送信する代わりにローカルシェルコマンドを実行。
         if let Some(stripped) = text.strip_prefix('!') {
             let cmd = stripped.trim();
             if cmd.is_empty() {
@@ -1769,7 +1769,7 @@ impl ChatWidget {
                 tracing::error!("failed to send message: {e}");
             });
 
-        // Persist the text to cross-session message history.
+        // テキストをクロスセッションメッセージ履歴に永続化。
         if !text.is_empty() {
             self.codex_op_tx
                 .send(Op::AddToHistory { text: text.clone() })
@@ -1778,24 +1778,24 @@ impl ChatWidget {
                 });
         }
 
-        // Only show the text portion in conversation history.
+        // 会話履歴ではテキスト部分のみを表示。
         if !text.is_empty() {
             self.add_to_history(history_cell::new_user_prompt(text));
         }
         self.needs_final_message_separator = false;
     }
 
-    /// Replay a subset of initial events into the UI to seed the transcript when
-    /// resuming an existing session. This approximates the live event flow and
-    /// is intentionally conservative: only safe-to-replay items are rendered to
-    /// avoid triggering side effects. Event ids are passed as `None` to
-    /// distinguish replayed events from live ones.
+    /// 既存のセッションを再開する際にトランスクリプトをシードするため、
+    /// 初期イベントのサブセットをUIにリプレイ。これはライブイベントフローを
+    /// 近似し、意図的に保守的: 副作用を引き起こさないよう、リプレイ安全な
+    /// アイテムのみがレンダリングされる。リプレイされたイベントをライブのものと
+    /// 区別するため、イベントIDは`None`として渡される。
     fn replay_initial_messages(&mut self, events: Vec<EventMsg>) {
         for msg in events {
             if matches!(msg, EventMsg::SessionConfigured(_)) {
                 continue;
             }
-            // `id: None` indicates a synthetic/fake id coming from replay.
+            // `id: None`はリプレイからの合成/フェイクIDを示す。
             self.dispatch_event_msg(None, msg, true);
         }
     }
@@ -1805,11 +1805,11 @@ impl ChatWidget {
         self.dispatch_event_msg(Some(id), msg, false);
     }
 
-    /// Dispatch a protocol `EventMsg` to the appropriate handler.
+    /// プロトコル`EventMsg`を適切なハンドラにディスパッチ。
     ///
-    /// `id` is `Some` for live events and `None` for replayed events from
-    /// `replay_initial_messages()`. Callers should treat `None` as a "fake" id
-    /// that must not be used to correlate follow-up actions.
+    /// `id`はライブイベントでは`Some`、`replay_initial_messages()`からの
+    /// リプレイイベントでは`None`。呼び出し元は`None`をフォローアップ
+    /// アクションの相関に使用してはならない「フェイク」IDとして扱うべき。
     fn dispatch_event_msg(&mut self, id: Option<String>, msg: EventMsg, from_replay: bool) {
         let is_stream_error = matches!(&msg, EventMsg::StreamError(_));
         if !is_stream_error {
@@ -1867,7 +1867,7 @@ impl ChatWidget {
             },
             EventMsg::PlanUpdate(update) => self.on_plan_update(update),
             EventMsg::ExecApprovalRequest(ev) => {
-                // For replayed events, synthesize an empty id (these should not occur).
+                // リプレイイベントの場合、空のIDを合成（これらは発生しないはず）。
                 self.on_exec_approval_request(id.unwrap_or_default(), ev)
             }
             EventMsg::ApplyPatchApprovalRequest(ev) => {
@@ -1930,7 +1930,7 @@ impl ChatWidget {
     }
 
     fn on_entered_review_mode(&mut self, review: ReviewRequest) {
-        // Enter review mode and emit a concise banner
+        // レビューモードに入り簡潔なバナーを発行
         if self.pre_review_token_info.is_none() {
             self.pre_review_token_info = Some(self.token_info.clone());
         }
@@ -1944,7 +1944,7 @@ impl ChatWidget {
     }
 
     fn on_exited_review_mode(&mut self, review: ExitedReviewModeEvent) {
-        // Leave review mode; if output is present, flush pending stream + show results.
+        // レビューモードを終了; 出力がある場合、保留中のストリームをフラッシュして結果を表示。
         if let Some(output) = review.review_output {
             self.flush_answer_stream_with_separator();
             self.flush_interrupt_queue();
@@ -1958,7 +1958,7 @@ impl ChatWidget {
                         "Reviewer failed to output a response.".to_owned(),
                     ));
                 } else {
-                    // Show explanation when there are no structured findings.
+                    // 構造化された発見事項がない場合は説明を表示。
                     let mut rendered: Vec<ratatui::text::Line<'static>> = vec!["".into()];
                     append_markdown(&explanation, None, &mut rendered);
                     let body_cell = AgentMessageCell::new(rendered, false);
@@ -1966,12 +1966,12 @@ impl ChatWidget {
                         .send(AppEvent::InsertHistoryCell(Box::new(body_cell)));
                 }
             }
-            // Final message is rendered as part of the AgentMessage.
+            // 最終メッセージはAgentMessageの一部としてレンダリングされる。
         }
 
         self.is_review_mode = false;
         self.restore_pre_review_token_info();
-        // Append a finishing banner at the end of this turn.
+        // このターンの最後に終了バナーを追加。
         self.add_to_history(history_cell::new_review_status_line(
             "<< Code review finished >>".to_string(),
         ));
@@ -2007,10 +2007,10 @@ impl ChatWidget {
         }
     }
 
-    /// Mark the active cell as failed (✗) and flush it into history.
+    /// アクティブセルを失敗（✗）としてマークし履歴にフラッシュ。
     fn finalize_active_cell_as_failed(&mut self) {
         if let Some(mut cell) = self.active_cell.take() {
-            // Insert finalized cell into history and keep grouping consistent.
+            // 確定したセルを履歴に挿入しグループ化の一貫性を保持。
             if let Some(exec) = cell.as_any_mut().downcast_mut::<ExecCell>() {
                 exec.mark_failed();
             } else if let Some(tool) = cell.as_any_mut().downcast_mut::<McpToolCallCell>() {
@@ -2020,7 +2020,7 @@ impl ChatWidget {
         }
     }
 
-    // If idle and there are queued inputs, submit exactly one to start the next turn.
+    // アイドル状態でキューに入力がある場合、次のターンを開始するために1つだけ送信。
     fn maybe_send_next_queued_input(&mut self) {
         if self.bottom_pane.is_task_running() {
             return;
@@ -2028,11 +2028,11 @@ impl ChatWidget {
         if let Some(user_message) = self.queued_user_messages.pop_front() {
             self.submit_user_message(user_message);
         }
-        // Update the list to reflect the remaining queued messages (if any).
+        // 残りのキューに入れられたメッセージ（もしあれば）を反映するようにリストを更新。
         self.refresh_queued_user_messages();
     }
 
-    /// Rebuild and update the queued user messages from the current queue.
+    /// 現在のキューからキューに入れられたユーザーメッセージを再構築し更新。
     fn refresh_queued_user_messages(&mut self) {
         let messages: Vec<String> = self
             .queued_user_messages
@@ -2207,12 +2207,12 @@ impl ChatWidget {
         });
     }
 
-    /// Open a popup to choose a quick auto model. Selecting "All models"
-    /// opens the full picker with every available preset.
+    /// クイック自動モデルを選択するポップアップを開く。「All models」を選択すると
+    /// 利用可能なすべてのプリセットを含む完全なピッカーを開く。
     pub(crate) fn open_model_popup(&mut self) {
         let current_model = self.model_family.get_model_slug().to_string();
         let presets: Vec<ModelPreset> =
-            // todo(aibrahim): make this async function
+            // todo(aibrahim): この関数をasyncにする
             match self.models_manager.try_list_models(&self.config) {
                 Ok(models) => models,
                 Err(_) => {
@@ -2385,7 +2385,7 @@ impl ChatWidget {
         })]
     }
 
-    /// Open a popup to choose the reasoning effort (stage 2) for the given model.
+    /// 指定されたモデルの推論エフォート（ステージ2）を選択するポップアップを開く。
     pub(crate) fn open_reasoning_popup(&mut self, preset: ModelPreset) {
         let default_effort: ReasoningEffortConfig = preset.default_reasoning_effort;
         let supported = preset.supported_reasoning_efforts;
@@ -2558,7 +2558,7 @@ impl ChatWidget {
         );
     }
 
-    /// Open a popup to choose the approvals mode (ask for approval policy + sandbox policy).
+    /// 承認モード（承認ポリシー＋サンドボックスポリシー）を選択するポップアップを開く。
     pub(crate) fn open_approvals_popup(&mut self) {
         let current_approval = self.config.approval_policy.value();
         let current_sandbox = self.config.sandbox_policy.get();
@@ -2810,7 +2810,7 @@ impl ChatWidget {
         ));
 
         if !sample_paths.is_empty() {
-            // Show up to three examples and optionally an "and X more" line.
+            // 最大3つの例を表示し、オプションで「and X more」行を表示。
             let mut lines: Vec<Line> = Vec::new();
             lines.push(Line::from(""));
             for p in &sample_paths {
@@ -2823,11 +2823,11 @@ impl ChatWidget {
         }
         let header = ColumnRenderable::with(header_children);
 
-        // Build actions ensuring acknowledgement happens before applying the new sandbox policy,
-        // so downstream policy-change hooks don't re-trigger the warning.
+        // 新しいサンドボックスポリシーを適用する前に確認が発生することを保証するアクションを構築。
+        // これにより、下流のポリシー変更フックが警告を再トリガーしないようにする。
         let mut accept_actions: Vec<SelectionAction> = Vec::new();
-        // Suppress the immediate re-scan only when a preset will be applied (i.e., via /approvals),
-        // to avoid duplicate warnings from the ensuing policy change.
+        // プリセットが適用される場合（つまり/approvals経由）のみ即時再スキャンを抑制し、
+        // 結果として生じるポリシー変更からの重複警告を回避。
         if preset.is_some() {
             accept_actions.push(Box::new(|tx| {
                 tx.send(AppEvent::SkipNextWorldWritableScan);
@@ -2956,14 +2956,14 @@ impl ChatWidget {
     #[allow(dead_code)]
     pub(crate) fn clear_forced_auto_mode_downgrade(&mut self) {}
 
-    /// Set the approval policy in the widget's config copy.
+    /// ウィジェットのコンフィグコピーに承認ポリシーを設定。
     pub(crate) fn set_approval_policy(&mut self, policy: AskForApproval) {
         if let Err(err) = self.config.approval_policy.set(policy) {
             tracing::warn!(%err, "failed to set approval_policy on chat config");
         }
     }
 
-    /// Set the sandbox policy in the widget's config copy.
+    /// ウィジェットのコンフィグコピーにサンドボックスポリシーを設定。
     pub(crate) fn set_sandbox_policy(&mut self, policy: SandboxPolicy) -> ConstraintResult<()> {
         #[cfg(target_os = "windows")]
         let should_clear_downgrade = !matches!(&policy, SandboxPolicy::ReadOnly)
@@ -3002,12 +3002,12 @@ impl ChatWidget {
             .unwrap_or(false)
     }
 
-    /// Set the reasoning effort in the widget's config copy.
+    /// ウィジェットのコンフィグコピーに推論エフォートを設定。
     pub(crate) fn set_reasoning_effort(&mut self, effort: Option<ReasoningEffortConfig>) {
         self.config.model_reasoning_effort = effort;
     }
 
-    /// Set the model in the widget's config copy.
+    /// ウィジェットのコンフィグコピーにモデルを設定。
     pub(crate) fn set_model(&mut self, model: &str, model_family: ModelFamily) {
         self.session_header.set_model(model);
         self.model_family = model_family;
@@ -3036,12 +3036,12 @@ impl ChatWidget {
         }
     }
 
-    /// Forward file-search results to the bottom pane.
+    /// ファイル検索結果をボトムペインに転送。
     pub(crate) fn apply_file_search_result(&mut self, query: String, matches: Vec<FileMatch>) {
         self.bottom_pane.on_file_search_result(query, matches);
     }
 
-    /// Handle Ctrl-C key press.
+    /// Ctrl-Cキー押下を処理。
     fn on_ctrl_c(&mut self) {
         if self.bottom_pane.on_ctrl_c() == CancellationEvent::Handled {
             return;
@@ -3060,9 +3060,9 @@ impl ChatWidget {
         self.bottom_pane.composer_is_empty()
     }
 
-    /// True when the UI is in the regular composer state with no running task,
-    /// no modal overlay (e.g. approvals or status indicator), and no composer popups.
-    /// In this state Esc-Esc backtracking is enabled.
+    /// 実行中のタスクがなく、モーダルオーバーレイ（例: 承認やステータスインジケータ）がなく、
+    /// コンポーザポップアップがない通常のコンポーザ状態の場合にtrue。
+    /// この状態ではEsc-Escバックトラックが有効。
     pub(crate) fn is_normal_backtrack_mode(&self) -> bool {
         self.bottom_pane.is_normal_backtrack_mode()
     }
@@ -3071,7 +3071,7 @@ impl ChatWidget {
         self.bottom_pane.insert_str(text);
     }
 
-    /// Replace the composer content with the provided text and reset cursor.
+    /// コンポーザの内容を提供されたテキストで置き換え、カーソルをリセット。
     pub(crate) fn set_composer_text(&mut self, text: String) {
         self.bottom_pane.set_composer_text(text);
     }
@@ -3084,19 +3084,19 @@ impl ChatWidget {
         self.bottom_pane.clear_esc_backtrack_hint();
     }
 
-    /// Return true when the bottom pane currently has an active task.
+    /// ボトムペインに現在アクティブなタスクがある場合にtrueを返す。
     ///
-    /// This is used by the viewport to decide when mouse selections should
-    /// disengage auto-follow behavior while responses are streaming.
+    /// これはビューポートがレスポンスのストリーミング中にマウス選択が
+    /// 自動追従動作を解除すべきタイミングを決定するために使用される。
     pub(crate) fn is_task_running(&self) -> bool {
         self.bottom_pane.is_task_running()
     }
 
-    /// Inform the bottom pane about the current transcript scroll state.
+    /// 現在のトランスクリプトスクロール状態についてボトムペインに通知。
     ///
-    /// This is used by the footer to surface when the inline transcript is
-    /// scrolled away from the bottom and to display the current
-    /// `(visible_top, total)` scroll position alongside other shortcuts.
+    /// これはインライントランスクリプトが下部からスクロールされた時に
+    /// フッターに表示するために使用され、現在の`(visible_top, total)`
+    /// スクロール位置を他のショートカットと一緒に表示する。
     pub(crate) fn set_transcript_ui_state(
         &mut self,
         scrolled: bool,
@@ -3112,9 +3112,9 @@ impl ChatWidget {
         );
     }
 
-    /// Forward an `Op` directly to codex.
+    /// `Op`を直接codexに転送。
     pub(crate) fn submit_op(&self, op: Op) {
-        // Record outbound operation for session replay fidelity.
+        // セッションリプレイの忠実性のために送信オペレーションを記録。
         crate::session_log::log_outbound_op(&op);
         if let Err(e) = self.codex_op_tx.send(op) {
             tracing::error!("failed to submit op: {e}");
@@ -3134,7 +3134,7 @@ impl ChatWidget {
     fn on_list_custom_prompts(&mut self, ev: ListCustomPromptsResponseEvent) {
         let len = ev.custom_prompts.len();
         debug!("received {len} custom prompts");
-        // Forward to bottom pane so the slash popup can show them now.
+        // スラッシュポップアップで表示できるようにボトムペインに転送。
         self.bottom_pane.set_custom_prompts(ev.custom_prompts);
     }
 
@@ -3172,7 +3172,7 @@ impl ChatWidget {
             ..Default::default()
         });
 
-        // New: Review a specific commit (opens commit picker)
+        // 新規: 特定のコミットをレビュー（コミットピッカーを開く）
         items.push(SelectionItem {
             name: "Review a commit".to_string(),
             actions: vec![Box::new({
@@ -3316,8 +3316,8 @@ impl ChatWidget {
         self.current_rollout_path.clone()
     }
 
-    /// Return a reference to the widget's current config (includes any
-    /// runtime overrides applied via TUI, e.g., model or approval policy).
+    /// ウィジェットの現在のコンフィグへの参照を返す（TUI経由で適用された
+    /// ランタイムオーバーライド、例えばモデルや承認ポリシーを含む）。
     pub(crate) fn config_ref(&self) -> &Config {
         &self.config
     }
@@ -3440,8 +3440,8 @@ const EXAMPLE_PROMPTS: [&str; 6] = [
     "Improve documentation in @filename",
 ];
 
-// Extract the first bold (Markdown) element in the form **...** from `s`.
-// Returns the inner text if found; otherwise `None`.
+// `s`から**...**形式の最初のボールド（Markdown）要素を抽出。
+// 見つかった場合は内部テキストを返す。そうでなければ`None`。
 fn extract_first_bold(s: &str) -> Option<String> {
     let bytes = s.as_bytes();
     let mut i = 0usize;
@@ -3451,7 +3451,7 @@ fn extract_first_bold(s: &str) -> Option<String> {
             let mut j = start;
             while j + 1 < bytes.len() {
                 if bytes[j] == b'*' && bytes[j + 1] == b'*' {
-                    // Found closing **
+                    // 閉じる**を発見
                     let inner = &s[start..j];
                     let trimmed = inner.trim();
                     if !trimmed.is_empty() {
@@ -3462,7 +3462,7 @@ fn extract_first_bold(s: &str) -> Option<String> {
                 }
                 j += 1;
             }
-            // No closing; stop searching (wait for more deltas)
+            // 閉じるものがない。検索を停止（さらなるデルタを待つ）
             return None;
         }
         i += 1;

@@ -44,7 +44,7 @@ struct WrapCache {
 
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct TextAreaState {
-    /// Index into wrapped lines of the first visible line.
+    /// 最初に表示される折り返し行へのインデックス。
     scroll: u16,
 }
 
@@ -109,20 +109,20 @@ impl TextArea {
         self.preferred_col = None;
         self.update_elements_after_replace(start, end, inserted_len);
 
-        // Update the cursor position to account for the edit.
+        // 編集を反映してカーソル位置を更新。
         self.cursor_pos = if self.cursor_pos < start {
-            // Cursor was before the edited range – no shift.
+            // カーソルは編集範囲より前 – シフトなし。
             self.cursor_pos
         } else if self.cursor_pos <= end {
-            // Cursor was inside the replaced range – move to end of the new text.
+            // カーソルは置換範囲内 – 新しいテキストの末尾に移動。
             start + inserted_len
         } else {
-            // Cursor was after the replaced range – shift by the length diff.
+            // カーソルは置換範囲より後 – 長さの差分だけシフト。
             ((self.cursor_pos as isize) + diff) as usize
         }
         .min(self.text.len());
 
-        // Ensure cursor is not inside an element
+        // カーソルがエレメント内部にないことを確認
         self.cursor_pos = self.clamp_pos_to_nearest_boundary(self.cursor_pos);
     }
 
@@ -145,7 +145,7 @@ impl TextArea {
         self.cursor_pos_with_state(area, TextAreaState::default())
     }
 
-    /// Compute the on-screen cursor position taking scrolling into account.
+    /// スクロールを考慮した画面上のカーソル位置を計算。
     pub fn cursor_pos_with_state(&self, area: Rect, state: TextAreaState) -> Option<(u16, u16)> {
         let lines = self.wrapped_lines(area.width);
         let effective_scroll = self.effective_scroll(area.height, &lines, state.scroll);
@@ -169,8 +169,8 @@ impl TextArea {
     }
 
     fn wrapped_line_index_by_start(lines: &[Range<usize>], pos: usize) -> Option<usize> {
-        // partition_point returns the index of the first element for which
-        // the predicate is false, i.e. the count of elements with start <= pos.
+        // partition_pointは述語がfalseになる最初の要素のインデックスを返す。
+        // つまり、start <= pos である要素の数。
         let idx = lines.partition_point(|r| r.start <= pos);
         if idx == 0 { None } else { Some(idx - 1) }
     }
@@ -186,7 +186,7 @@ impl TextArea {
             width_so_far += g.width();
             if width_so_far > target_col {
                 self.cursor_pos = line_start + i;
-                // Avoid landing inside an element; round to nearest boundary
+                // エレメント内部に着地しないよう最も近い境界に丸める
                 self.cursor_pos = self.clamp_pos_to_nearest_boundary(self.cursor_pos);
                 return;
             }
@@ -214,10 +214,10 @@ impl TextArea {
 
     pub fn input(&mut self, event: KeyEvent) {
         match event {
-            // Some terminals (or configurations) send Control key chords as
-            // C0 control characters without reporting the CONTROL modifier.
-            // Handle common fallbacks for Ctrl-B/F/P/N here so they don't get
-            // inserted as literal control bytes.
+            // 一部のターミナル（または設定）はControlキーのコードを
+            // CONTROLモディファイアを報告せずにC0制御文字として送信する。
+            // Ctrl-B/F/P/Nの一般的なフォールバックをここで処理し、
+            // リテラル制御バイトとして挿入されないようにする。
             KeyEvent { code: KeyCode::Char('\u{0002}'), modifiers: KeyModifiers::NONE, .. } /* ^B */ => {
                 self.move_cursor_left();
             }
@@ -232,9 +232,9 @@ impl TextArea {
             }
             KeyEvent {
                 code: KeyCode::Char(c),
-                // Insert plain characters (and Shift-modified). Do NOT insert when ALT is held,
-                // because many terminals map Option/Meta combos to ALT+<char> (e.g. ESC f/ESC b)
-                // for word navigation. Those are handled explicitly below.
+                // 通常の文字（およびShift修飾）を挿入。ALTが押されているときは挿入しない。
+                // 多くのターミナルがOption/MetaコンボをALT+<char>（例: ESC f/ESC b）に
+                // マッピングしてワードナビゲーションに使うため。それらは以下で明示的に処理。
                 modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
                 ..
             } => self.insert_str(&c.to_string()),
@@ -254,8 +254,8 @@ impl TextArea {
             } if modifiers == (KeyModifiers::CONTROL | KeyModifiers::ALT) => {
                 self.delete_backward_word()
             },
-            // Windows AltGr generates ALT|CONTROL; treat as a plain character input unless
-            // we match a specific Control+Alt binding above.
+            // Windows AltGrはALT|CONTROLを生成する。上記で特定のControl+Altバインディングに
+            // マッチしない限り、通常の文字入力として扱う。
             KeyEvent {
                 code: KeyCode::Char(c),
                 modifiers,
@@ -297,9 +297,9 @@ impl TextArea {
             } => {
                 self.delete_backward_word();
             }
-            // Meta-b -> move to beginning of previous word
-            // Meta-f -> move to end of next word
-            // Many terminals map Option (macOS) to Alt. Some send Alt|Shift, so match contains(ALT).
+            // Meta-b -> 前のワードの先頭に移動
+            // Meta-f -> 次のワードの末尾に移動
+            // 多くのターミナルはOption（macOS）をAltにマッピングする。Alt|Shiftを送るものもあるため、contains(ALT)でマッチ。
             KeyEvent {
                 code: KeyCode::Char('b'),
                 modifiers: KeyModifiers::ALT,
@@ -336,7 +336,7 @@ impl TextArea {
                 self.yank();
             }
 
-            // Cursor movement
+            // カーソル移動
             KeyEvent {
                 code: KeyCode::Left,
                 modifiers: KeyModifiers::NONE,
@@ -379,9 +379,9 @@ impl TextArea {
             } => {
                 self.move_cursor_down();
             }
-            // Some terminals send Alt+Arrow for word-wise movement:
-            // Option/Left -> Alt+Left (previous word start)
-            // Option/Right -> Alt+Right (next word end)
+            // 一部のターミナルはワード単位の移動にAlt+矢印を送信：
+            // Option/Left -> Alt+Left（前のワードの先頭）
+            // Option/Right -> Alt+Right（次のワードの末尾）
             KeyEvent {
                 code: KeyCode::Left,
                 modifiers: KeyModifiers::ALT,
@@ -450,7 +450,7 @@ impl TextArea {
         }
     }
 
-    // ####### Input Functions #######
+    // ####### 入力関数 #######
     pub fn delete_backward(&mut self, n: usize) {
         if n == 0 || self.cursor_pos == 0 {
             return;
@@ -484,11 +484,10 @@ impl TextArea {
         self.kill_range(start..self.cursor_pos);
     }
 
-    /// Delete text to the right of the cursor using "word" semantics.
+    /// 「ワード」セマンティクスを使用してカーソルの右側のテキストを削除。
     ///
-    /// Deletes from the current cursor position through the end of the next word as determined
-    /// by `end_of_next_word()`. Any whitespace (including newlines) between the cursor and that
-    /// word is included in the deletion.
+    /// `end_of_next_word()`で決定される次のワードの末尾まで、現在のカーソル位置から
+    /// 削除する。カーソルとそのワードの間の空白（改行を含む）も削除に含まれる。
     pub fn delete_forward_word(&mut self) {
         let end = self.end_of_next_word();
         if end > self.cursor_pos {
@@ -549,20 +548,20 @@ impl TextArea {
         self.replace_range_raw(range, "");
     }
 
-    /// Move the cursor left by a single grapheme cluster.
+    /// カーソルを1つの書記素クラスタ分左に移動。
     pub fn move_cursor_left(&mut self) {
         self.cursor_pos = self.prev_atomic_boundary(self.cursor_pos);
         self.preferred_col = None;
     }
 
-    /// Move the cursor right by a single grapheme cluster.
+    /// カーソルを1つの書記素クラスタ分右に移動。
     pub fn move_cursor_right(&mut self) {
         self.cursor_pos = self.next_atomic_boundary(self.cursor_pos);
         self.preferred_col = None;
     }
 
     pub fn move_cursor_up(&mut self) {
-        // If we have a wrapping cache, prefer navigating across wrapped (visual) lines.
+        // 折り返しキャッシュがある場合、折り返された（視覚的な）行を跨ぐナビゲーションを優先。
         if let Some((target_col, maybe_line)) = {
             let cache_ref = self.wrap_cache.borrow();
             if let Some(cache) = cache_ref.as_ref() {
@@ -587,7 +586,7 @@ impl TextArea {
                 None
             }
         } {
-            // We had wrapping info. Apply movement accordingly.
+            // 折り返し情報があった。それに応じて移動を適用。
             match maybe_line {
                 Some((line_start, line_end)) => {
                     if self.preferred_col.is_none() {
@@ -597,7 +596,7 @@ impl TextArea {
                     return;
                 }
                 None => {
-                    // Already at first visual line -> move to start
+                    // 既に最初の視覚的な行にいる -> 先頭に移動
                     self.cursor_pos = 0;
                     self.preferred_col = None;
                     return;
@@ -605,7 +604,7 @@ impl TextArea {
             }
         }
 
-        // Fallback to logical line navigation if we don't have wrapping info yet.
+        // 折り返し情報がまだない場合は論理行ナビゲーションにフォールバック。
         if let Some(prev_nl) = self.text[..self.cursor_pos].rfind('\n') {
             let target_col = match self.preferred_col {
                 Some(c) => c,
@@ -625,7 +624,7 @@ impl TextArea {
     }
 
     pub fn move_cursor_down(&mut self) {
-        // If we have a wrapping cache, prefer navigating across wrapped (visual) lines.
+        // 折り返しキャッシュがある場合、折り返された（視覚的な）行を跨ぐナビゲーションを優先。
         if let Some((target_col, move_to_last)) = {
             let cache_ref = self.wrap_cache.borrow();
             if let Some(cache) = cache_ref.as_ref() {
@@ -659,7 +658,7 @@ impl TextArea {
                     return;
                 }
                 None => {
-                    // Already on last visual line -> move to end
+                    // 既に最後の視覚的な行にいる -> 末尾に移動
                     self.cursor_pos = self.text.len();
                     self.preferred_col = None;
                     return;
@@ -667,7 +666,7 @@ impl TextArea {
             }
         }
 
-        // Fallback to logical line navigation if we don't have wrapping info yet.
+        // 折り返し情報がまだない場合は論理行ナビゲーションにフォールバック。
         let target_col = match self.preferred_col {
             Some(c) => c,
             None => {
@@ -712,14 +711,14 @@ impl TextArea {
         }
     }
 
-    // ===== Text elements support =====
+    // ===== テキストエレメントサポート =====
 
     pub fn insert_element(&mut self, text: &str) {
         let start = self.clamp_pos_for_insertion(self.cursor_pos);
         self.insert_str_at(start, text);
         let end = start + text.len();
         self.add_element(start..end);
-        // Place cursor at end of inserted element
+        // カーソルを挿入されたエレメントの末尾に配置
         self.set_cursor(end);
     }
 
@@ -754,10 +753,10 @@ impl TextArea {
     }
 
     fn clamp_pos_for_insertion(&self, pos: usize) -> usize {
-        // Do not allow inserting into the middle of an element
+        // エレメントの中間への挿入を許可しない
         if let Some(idx) = self.find_element_containing(pos) {
             let e = &self.elements[idx];
-            // Choose closest edge for insertion
+            // 挿入のために最も近いエッジを選択
             let dist_start = pos.saturating_sub(e.range.start);
             let dist_end = e.range.end.saturating_sub(pos);
             if dist_start <= dist_end {
@@ -771,7 +770,7 @@ impl TextArea {
     }
 
     fn expand_range_to_element_boundaries(&self, mut range: Range<usize>) -> Range<usize> {
-        // Expand to include any intersecting elements fully
+        // 交差するエレメントを完全に含むよう拡張
         loop {
             let mut changed = false;
             for e in &self.elements {
@@ -793,22 +792,23 @@ impl TextArea {
     }
 
     fn shift_elements(&mut self, at: usize, removed: usize, inserted: usize) {
-        // Generic shift: for pure insert, removed = 0; for delete, inserted = 0.
+        // 汎用シフト：純粋な挿入ではremoved = 0、削除ではinserted = 0。
         let end = at + removed;
         let diff = inserted as isize - removed as isize;
-        // Remove elements fully deleted by the operation and shift the rest
+        // 操作によって完全に削除されたエレメントを除去し、残りをシフト
         self.elements
             .retain(|e| !(e.range.start >= at && e.range.end <= end));
         for e in &mut self.elements {
             if e.range.end <= at {
-                // before edit
+                // 編集より前
             } else if e.range.start >= end {
-                // after edit
+                // 編集より後
                 e.range.start = ((e.range.start as isize) + diff) as usize;
                 e.range.end = ((e.range.end as isize) + diff) as usize;
             } else {
-                // Overlap with element but not fully contained (shouldn't happen when using
-                // element-aware replace, but degrade gracefully by snapping element to new bounds)
+                // エレメントとオーバーラップしているが完全に含まれていない
+                // （エレメント対応の置換を使用していれば発生しないはずだが、
+                // 新しい境界にスナップして優雅にデグレード）
                 let new_start = at.min(e.range.start);
                 let new_end = at + inserted.max(e.range.end.saturating_sub(end));
                 e.range.start = new_start;
@@ -825,7 +825,7 @@ impl TextArea {
         if pos == 0 {
             return 0;
         }
-        // If currently at an element end or inside, jump to start of that element.
+        // 現在エレメントの末尾または内部にいる場合、そのエレメントの先頭にジャンプ。
         if let Some(idx) = self
             .elements
             .iter()
@@ -851,7 +851,7 @@ impl TextArea {
         if pos >= self.text.len() {
             return self.text.len();
         }
-        // If currently at an element start or inside, jump to end of that element.
+        // 現在エレメントの先頭または内部にいる場合、そのエレメントの末尾にジャンプ。
         if let Some(idx) = self
             .elements
             .iter()
@@ -930,7 +930,7 @@ impl TextArea {
 
     #[expect(clippy::unwrap_used)]
     fn wrapped_lines(&self, width: u16) -> Ref<'_, Vec<Range<usize>>> {
-        // Ensure cache is ready (potentially mutably borrow, then drop)
+        // キャッシュの準備を確認（可変借用の可能性があり、その後ドロップ）
         {
             let mut cache = self.wrap_cache.borrow_mut();
             let needs_recalc = match cache.as_ref() {
@@ -950,11 +950,11 @@ impl TextArea {
         Ref::map(cache, |c| &c.as_ref().unwrap().lines)
     }
 
-    /// Calculate the scroll offset that should be used to satisfy the
-    /// invariants given the current area size and wrapped lines.
+    /// 現在のエリアサイズと折り返し行に対して、不変条件を満たすために
+    /// 使用すべきスクロールオフセットを計算。
     ///
-    /// - Cursor is always on screen.
-    /// - No scrolling if content fits in the area.
+    /// - カーソルは常に画面上に表示。
+    /// - コンテンツがエリアに収まる場合はスクロールなし。
     fn effective_scroll(
         &self,
         area_height: u16,
@@ -966,15 +966,15 @@ impl TextArea {
             return 0;
         }
 
-        // Where is the cursor within wrapped lines? Prefer assigning boundary positions
-        // (where pos equals the start of a wrapped line) to that later line.
+        // カーソルは折り返し行のどこにあるか？境界位置（posが折り返し行の先頭と等しい場合）は
+        // その後の行に割り当てることを優先。
         let cursor_line_idx =
             Self::wrapped_line_index_by_start(lines, self.cursor_pos).unwrap_or(0) as u16;
 
         let max_scroll = total_lines.saturating_sub(area_height);
         let mut scroll = current_scroll.min(max_scroll);
 
-        // Ensure cursor is visible within [scroll, scroll + area_height)
+        // カーソルが[scroll, scroll + area_height)内に見えることを保証
         if cursor_line_idx < scroll {
             scroll = cursor_line_idx;
         } else if cursor_line_idx >= scroll + area_height {
@@ -1017,12 +1017,12 @@ impl TextArea {
             let r = &lines[idx];
             let y = area.y + row as u16;
             let line_range = r.start..r.end - 1;
-            // Draw base line with default style.
+            // デフォルトスタイルでベースラインを描画。
             buf.set_string(area.x, y, &self.text[line_range.clone()], Style::default());
 
-            // Overlay styled segments for elements that intersect this line.
+            // この行と交差するエレメントのスタイル付きセグメントをオーバーレイ。
             for elem in &self.elements {
-                // Compute overlap with displayed slice.
+                // 表示されるスライスとのオーバーラップを計算。
                 let overlap_start = elem.range.start.max(line_range.start);
                 let overlap_end = elem.range.end.min(line_range.end);
                 if overlap_start >= overlap_end {
@@ -1040,7 +1040,7 @@ impl TextArea {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // crossterm types are intentionally not imported here to avoid unused warnings
+    // crossterm型は未使用警告を避けるため意図的にここではインポートしない
     use rand::prelude::*;
 
     fn rand_grapheme(rng: &mut rand::rngs::StdRng) -> String {
@@ -1052,32 +1052,32 @@ mod tests {
             36..=45 => (rng.random_range(b'A'..=b'Z') as char).to_string(),
             46..=52 => (rng.random_range(b'0'..=b'9') as char).to_string(),
             53..=65 => {
-                // Some emoji (wide graphemes)
+                // 絵文字（ワイドグラフェム）
                 let choices = ["👍", "😊", "🐍", "🚀", "🧪", "🌟"];
                 choices[rng.random_range(0..choices.len())].to_string()
             }
             66..=75 => {
-                // CJK wide characters
+                // CJKワイド文字
                 let choices = ["漢", "字", "測", "試", "你", "好", "界", "编", "码"];
                 choices[rng.random_range(0..choices.len())].to_string()
             }
             76..=85 => {
-                // Combining mark sequences
+                // 結合マークシーケンス
                 let base = ["e", "a", "o", "n", "u"][rng.random_range(0..5)];
                 let marks = ["\u{0301}", "\u{0308}", "\u{0302}", "\u{0303}"];
                 format!("{base}{}", marks[rng.random_range(0..marks.len())])
             }
             86..=92 => {
-                // Some non-latin single codepoints (Greek, Cyrillic, Hebrew)
+                // 非ラテン単一コードポイント（ギリシャ語、キリル文字、ヘブライ語）
                 let choices = ["Ω", "β", "Ж", "ю", "ש", "م", "ह"];
                 choices[rng.random_range(0..choices.len())].to_string()
             }
             _ => {
-                // ZWJ sequences (single graphemes but multi-codepoint)
+                // ZWJシーケンス（単一グラフェムだが複数コードポイント）
                 let choices = [
-                    "👩\u{200D}💻", // woman technologist
-                    "👨\u{200D}💻", // man technologist
-                    "🏳️\u{200D}🌈", // rainbow flag
+                    "👩\u{200D}💻", // 女性技術者
+                    "👨\u{200D}💻", // 男性技術者
+                    "🏳️\u{200D}🌈", // レインボーフラッグ
                 ];
                 choices[rng.random_range(0..choices.len())].to_string()
             }
@@ -1092,7 +1092,7 @@ mod tests {
 
     #[test]
     fn insert_and_replace_update_cursor_and_text() {
-        // insert helpers
+        // 挿入ヘルパー
         let mut t = ta_with("hello");
         t.set_cursor(5);
         t.insert_str("!");
@@ -1103,29 +1103,29 @@ mod tests {
         assert_eq!(t.text(), "Xhello!");
         assert_eq!(t.cursor(), 7);
 
-        // Insert after the cursor should not move it
+        // カーソルの後への挿入はカーソルを移動させない
         t.set_cursor(1);
         let end = t.text().len();
         t.insert_str_at(end, "Y");
         assert_eq!(t.text(), "Xhello!Y");
         assert_eq!(t.cursor(), 1);
 
-        // replace_range cases
-        // 1) cursor before range
+        // replace_rangeのケース
+        // 1) カーソルが範囲より前
         let mut t = ta_with("abcd");
         t.set_cursor(1);
         t.replace_range(2..3, "Z");
         assert_eq!(t.text(), "abZd");
         assert_eq!(t.cursor(), 1);
 
-        // 2) cursor inside range
+        // 2) カーソルが範囲内
         let mut t = ta_with("abcd");
         t.set_cursor(2);
         t.replace_range(1..3, "Q");
         assert_eq!(t.text(), "aQd");
         assert_eq!(t.cursor(), 2);
 
-        // 3) cursor after range with shifted by diff
+        // 3) カーソルが範囲より後で差分だけシフト
         let mut t = ta_with("abcd");
         t.set_cursor(4);
         t.replace_range(0..1, "AA");
@@ -1141,19 +1141,19 @@ mod tests {
         assert_eq!(t.text(), "bc");
         assert_eq!(t.cursor(), 0);
 
-        // deleting backward at start is a no-op
+        // 先頭での後方削除は何もしない
         t.set_cursor(0);
         t.delete_backward(1);
         assert_eq!(t.text(), "bc");
         assert_eq!(t.cursor(), 0);
 
-        // forward delete removes next grapheme
+        // 前方削除は次のグラフェムを削除
         t.set_cursor(1);
         t.delete_forward(1);
         assert_eq!(t.text(), "b");
         assert_eq!(t.cursor(), 1);
 
-        // forward delete at end is a no-op
+        // 末尾での前方削除は何もしない
         t.set_cursor(t.text().len());
         t.delete_forward(1);
         assert_eq!(t.text(), "b");
@@ -1161,48 +1161,48 @@ mod tests {
 
     #[test]
     fn delete_backward_word_and_kill_line_variants() {
-        // delete backward word at end removes the whole previous word
+        // 末尾でのワード後方削除は前のワード全体を削除
         let mut t = ta_with("hello   world  ");
         t.set_cursor(t.text().len());
         t.delete_backward_word();
         assert_eq!(t.text(), "hello   ");
         assert_eq!(t.cursor(), 8);
 
-        // From inside a word, delete from word start to cursor
+        // ワードの中からは、ワードの先頭からカーソルまで削除
         let mut t = ta_with("foo bar");
         t.set_cursor(6); // inside "bar" (after 'a')
         t.delete_backward_word();
         assert_eq!(t.text(), "foo r");
         assert_eq!(t.cursor(), 4);
 
-        // From end, delete the last word only
+        // 末尾からは、最後のワードのみを削除
         let mut t = ta_with("foo bar");
         t.set_cursor(t.text().len());
         t.delete_backward_word();
         assert_eq!(t.text(), "foo ");
         assert_eq!(t.cursor(), 4);
 
-        // kill_to_end_of_line when not at EOL
+        // EOLにいないときのkill_to_end_of_line
         let mut t = ta_with("abc\ndef");
         t.set_cursor(1); // on first line, middle
         t.kill_to_end_of_line();
         assert_eq!(t.text(), "a\ndef");
         assert_eq!(t.cursor(), 1);
 
-        // kill_to_end_of_line when at EOL deletes newline
+        // EOLにいるときのkill_to_end_of_lineは改行を削除
         let mut t = ta_with("abc\ndef");
         t.set_cursor(3); // EOL of first line
         t.kill_to_end_of_line();
         assert_eq!(t.text(), "abcdef");
         assert_eq!(t.cursor(), 3);
 
-        // kill_to_beginning_of_line from middle of line
+        // 行の途中からのkill_to_beginning_of_line
         let mut t = ta_with("abc\ndef");
         t.set_cursor(5); // on second line, after 'e'
         t.kill_to_beginning_of_line();
         assert_eq!(t.text(), "abc\nef");
 
-        // kill_to_beginning_of_line at beginning of non-first line removes the previous newline
+        // 最初でない行の先頭でのkill_to_beginning_of_lineは前の改行を削除
         let mut t = ta_with("abc\ndef");
         t.set_cursor(4); // beginning of second line
         t.kill_to_beginning_of_line();
@@ -1275,7 +1275,7 @@ mod tests {
         t.insert_element("<element>");
         t.insert_str(" tail");
 
-        // cursor in the middle of the element, delete_forward_word deletes the element
+        // エレメントの中央にカーソルがあるとき、delete_forward_wordはエレメントを削除
         let elem_range = t.elements[0].range.clone();
         t.cursor_pos = elem_range.start + (elem_range.len() / 2);
         t.delete_forward_word();
@@ -1382,7 +1382,7 @@ mod tests {
         assert!(after_second_left < after_first_left);
         assert!(after_third_left < after_second_left);
 
-        // Move right back to end safely
+        // 安全に末尾まで右に戻る
         t.move_cursor_right();
         t.move_cursor_right();
         t.move_cursor_right();
@@ -1406,19 +1406,19 @@ mod tests {
         let mut t = ta_with("abcd");
         t.set_cursor(2);
 
-        // Simulate terminals that send C0 control chars without CONTROL modifier.
-        // ^B (U+0002) should move left
+        // CONTROLモディファイアなしでC0制御文字を送信するターミナルをシミュレート。
+        // ^B (U+0002) は左に移動すべき
         t.input(KeyEvent::new(KeyCode::Char('\u{0002}'), KeyModifiers::NONE));
         assert_eq!(t.cursor(), 1);
 
-        // ^F (U+0006) should move right
+        // ^F (U+0006) は右に移動すべき
         t.input(KeyEvent::new(KeyCode::Char('\u{0006}'), KeyModifiers::NONE));
         assert_eq!(t.cursor(), 2);
     }
 
     #[test]
     fn delete_backward_word_alt_keys() {
-        // Test the custom Alt+Ctrl+h binding
+        // カスタムAlt+Ctrl+hバインディングのテスト
         let mut t = ta_with("hello world");
         t.set_cursor(t.text().len()); // cursor at the end
         t.input(KeyEvent::new(
@@ -1428,7 +1428,7 @@ mod tests {
         assert_eq!(t.text(), "hello ");
         assert_eq!(t.cursor(), 6);
 
-        // Test the standard Alt+Backspace binding
+        // 標準Alt+Backspaceバインディングのテスト
         let mut t = ta_with("hello world");
         t.set_cursor(t.text().len()); // cursor at the end
         t.input(KeyEvent::new(KeyCode::Backspace, KeyModifiers::ALT));
@@ -1462,20 +1462,20 @@ mod tests {
 
     #[test]
     fn control_h_backspace() {
-        // Test Ctrl+H as backspace
+        // Ctrl+Hをバックスペースとしてテスト
         let mut t = ta_with("12345");
         t.set_cursor(3); // cursor after '3'
         t.input(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::CONTROL));
         assert_eq!(t.text(), "1245");
         assert_eq!(t.cursor(), 2);
 
-        // Test Ctrl+H at beginning (should be no-op)
+        // 先頭でのCtrl+Hのテスト（何もしないはず）
         t.set_cursor(0);
         t.input(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::CONTROL));
         assert_eq!(t.text(), "1245");
         assert_eq!(t.cursor(), 0);
 
-        // Test Ctrl+H at end
+        // 末尾でのCtrl+Hのテスト
         t.set_cursor(t.text().len());
         t.input(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::CONTROL));
         assert_eq!(t.text(), "124");
@@ -1497,31 +1497,31 @@ mod tests {
     #[test]
     fn cursor_vertical_movement_across_lines_and_bounds() {
         let mut t = ta_with("short\nloooooooooong\nmid");
-        // Place cursor on second line, column 5
-        let second_line_start = 6; // after first '\n'
+        // カーソルを2行目の列5に配置
+        let second_line_start = 6; // 最初の'\n'の後
         t.set_cursor(second_line_start + 5);
 
-        // Move up: target column preserved, clamped by line length
+        // 上移動：ターゲット列は保持され、行の長さでクランプ
         t.move_cursor_up();
         assert_eq!(t.cursor(), 5); // first line has len 5
 
-        // Move up again goes to start of text
+        // もう一度上移動でテキストの先頭へ
         t.move_cursor_up();
         assert_eq!(t.cursor(), 0);
 
-        // Move down: from start to target col tracked
+        // 下移動：開始位置からターゲット列を追跡
         t.move_cursor_down();
-        // On first move down, we should land on second line, at col 0 (target col remembered as 0)
+        // 最初の下移動で、2行目の列0に着地すべき（ターゲット列は0として記憶）
         let pos_after_down = t.cursor();
         assert!(pos_after_down >= second_line_start);
 
-        // Move down again to third line; clamp to its length
+        // もう一度下移動で3行目へ。その長さにクランプ
         t.move_cursor_down();
         let third_line_start = t.text().find("mid").unwrap();
         let third_line_end = third_line_start + 3;
         assert!(t.cursor() >= third_line_start && t.cursor() <= third_line_end);
 
-        // Moving down at last line jumps to end
+        // 最後の行での下移動は末尾にジャンプ
         t.move_cursor_down();
         assert_eq!(t.cursor(), t.text().len());
     }
@@ -1529,24 +1529,24 @@ mod tests {
     #[test]
     fn home_end_and_emacs_style_home_end() {
         let mut t = ta_with("one\ntwo\nthree");
-        // Position at middle of second line
+        // 2行目の中央に配置
         let second_line_start = t.text().find("two").unwrap();
         t.set_cursor(second_line_start + 1);
 
         t.move_cursor_to_beginning_of_line(false);
         assert_eq!(t.cursor(), second_line_start);
 
-        // Ctrl-A behavior: if at BOL, go to beginning of previous line
+        // Ctrl-Aの動作：BOLにいる場合、前の行の先頭に移動
         t.move_cursor_to_beginning_of_line(true);
         assert_eq!(t.cursor(), 0); // beginning of first line
 
-        // Move to EOL of first line
+        // 1行目のEOLに移動
         t.move_cursor_to_end_of_line(false);
         assert_eq!(t.cursor(), 3);
 
-        // Ctrl-E: if at EOL, go to end of next line
+        // Ctrl-E：EOLにいる場合、次の行の末尾に移動
         t.move_cursor_to_end_of_line(true);
-        // end of second line ("two") is right before its '\n'
+        // 2行目（"two"）の末尾はその'\n'の直前
         let end_second_nl = t.text().find("\nthree").unwrap();
         assert_eq!(t.cursor(), end_second_nl);
     }
@@ -1554,14 +1554,14 @@ mod tests {
     #[test]
     fn end_of_line_or_down_at_end_of_text() {
         let mut t = ta_with("one\ntwo");
-        // Place cursor at absolute end of the text
+        // カーソルをテキストの絶対末尾に配置
         t.set_cursor(t.text().len());
-        // Should remain at end without panicking
+        // パニックせずに末尾に留まるべき
         t.move_cursor_to_end_of_line(true);
         assert_eq!(t.cursor(), t.text().len());
 
-        // Also verify behavior when at EOL of a non-final line:
-        let eol_first_line = 3; // index of '\n' in "one\ntwo"
+        // 最終行でない行のEOLにいるときの動作も検証：
+        let eol_first_line = 3; // "one\ntwo"の'\n'のインデックス
         t.set_cursor(eol_first_line);
         t.move_cursor_to_end_of_line(true);
         assert_eq!(t.cursor(), t.text().len()); // moves to end of next (last) line
@@ -1570,18 +1570,18 @@ mod tests {
     #[test]
     fn word_navigation_helpers() {
         let t = ta_with("  alpha  beta   gamma");
-        let mut t = t; // make mutable for set_cursor
-        // Put cursor after "alpha"
+        let mut t = t; // set_cursor用に可変に
+        // カーソルを"alpha"の後に配置
         let after_alpha = t.text().find("alpha").unwrap() + "alpha".len();
         t.set_cursor(after_alpha);
         assert_eq!(t.beginning_of_previous_word(), 2); // skip initial spaces
 
-        // Put cursor at start of beta
+        // カーソルをbetaの先頭に配置
         let beta_start = t.text().find("beta").unwrap();
         t.set_cursor(beta_start);
         assert_eq!(t.end_of_next_word(), beta_start + "beta".len());
 
-        // If at end, end_of_next_word returns len
+        // 末尾にいる場合、end_of_next_wordはlenを返す
         t.set_cursor(t.text().len());
         assert_eq!(t.end_of_next_word(), t.text().len());
     }
@@ -1589,63 +1589,63 @@ mod tests {
     #[test]
     fn wrapping_and_cursor_positions() {
         let mut t = ta_with("hello world here");
-        let area = Rect::new(0, 0, 6, 10); // width 6 -> wraps words
-        // desired height counts wrapped lines
+        let area = Rect::new(0, 0, 6, 10); // 幅6 -> ワードを折り返す
+        // desired heightは折り返された行をカウント
         assert!(t.desired_height(area.width) >= 3);
 
-        // Place cursor in "world"
+        // カーソルを"world"内に配置
         let world_start = t.text().find("world").unwrap();
         t.set_cursor(world_start + 3);
         let (_x, y) = t.cursor_pos(area).unwrap();
         assert_eq!(y, 1); // world should be on second wrapped line
 
-        // With state and small height, cursor is mapped onto visible row
+        // ステートと小さい高さで、カーソルは表示可能な行にマッピングされる
         let mut state = TextAreaState::default();
         let small_area = Rect::new(0, 0, 6, 1);
-        // First call: cursor not visible -> effective scroll ensures it is
+        // 最初の呼び出し：カーソルが見えない -> effective scrollがそれを保証
         let (_x, y) = t.cursor_pos_with_state(small_area, state).unwrap();
         assert_eq!(y, 0);
 
-        // Render with state to update actual scroll value
+        // ステートでレンダリングして実際のスクロール値を更新
         let mut buf = Buffer::empty(small_area);
         ratatui::widgets::StatefulWidgetRef::render_ref(&(&t), small_area, &mut buf, &mut state);
-        // After render, state.scroll should be adjusted so cursor row fits
+        // レンダリング後、state.scrollはカーソル行が収まるよう調整されるべき
         let effective_lines = t.desired_height(small_area.width);
         assert!(state.scroll < effective_lines);
     }
 
     #[test]
     fn cursor_pos_with_state_basic_and_scroll_behaviors() {
-        // Case 1: No wrapping needed, height fits — scroll ignored, y maps directly.
+        // ケース1：折り返し不要、高さが収まる — スクロールは無視され、yは直接マッピング。
         let mut t = ta_with("hello world");
         t.set_cursor(3);
         let area = Rect::new(2, 5, 20, 3);
-        // Even if an absurd scroll is provided, when content fits the area the
-        // effective scroll is 0 and the cursor position matches cursor_pos.
+        // 不合理なスクロールが提供されても、コンテンツがエリアに収まるとき
+        // effective scrollは0で、カーソル位置はcursor_posと一致。
         let bad_state = TextAreaState { scroll: 999 };
         let (x1, y1) = t.cursor_pos(area).unwrap();
         let (x2, y2) = t.cursor_pos_with_state(area, bad_state).unwrap();
         assert_eq!((x2, y2), (x1, y1));
 
-        // Case 2: Cursor below the current window — y should be clamped to the
-        // bottom row (area.height - 1) after adjusting effective scroll.
+        // ケース2：カーソルが現在のウィンドウより下 — effective scrollを調整後
+        // 下端行（area.height - 1）にクランプされるべき。
         let mut t = ta_with("one two three four five six");
-        // Force wrapping to many visual lines.
+        // 多くの視覚的な行に強制的に折り返し。
         let wrap_width = 4;
         let _ = t.desired_height(wrap_width);
-        // Put cursor somewhere near the end so it's definitely below the first window.
+        // カーソルを末尾付近に配置し、最初のウィンドウより確実に下に。
         t.set_cursor(t.text().len().saturating_sub(2));
         let small_area = Rect::new(0, 0, wrap_width, 2);
         let state = TextAreaState { scroll: 0 };
         let (_x, y) = t.cursor_pos_with_state(small_area, state).unwrap();
         assert_eq!(y, small_area.y + small_area.height - 1);
 
-        // Case 3: Cursor above the current window — y should be top row (0)
-        // when the provided scroll is too large.
+        // ケース3：カーソルが現在のウィンドウより上 — 提供されたスクロールが
+        // 大きすぎる場合、yは上端行（0）になるべき。
         let mut t = ta_with("alpha beta gamma delta epsilon zeta");
         let wrap_width = 5;
         let lines = t.desired_height(wrap_width);
-        // Place cursor near start so an excessive scroll moves it to top row.
+        // カーソルを先頭付近に配置し、過剰なスクロールで上端行に移動させる。
         t.set_cursor(1);
         let area = Rect::new(0, 0, wrap_width, 3);
         let state = TextAreaState {
@@ -1658,37 +1658,37 @@ mod tests {
     #[test]
     fn wrapped_navigation_across_visual_lines() {
         let mut t = ta_with("abcdefghij");
-        // Force wrapping at width 4: lines -> ["abcd", "efgh", "ij"]
+        // 幅4で強制折り返し：行 -> ["abcd", "efgh", "ij"]
         let _ = t.desired_height(4);
 
-        // From the very start, moving down should go to the start of the next wrapped line (index 4)
+        // 最初から、下移動は次の折り返し行の先頭（インデックス4）に行くべき
         t.set_cursor(0);
         t.move_cursor_down();
         assert_eq!(t.cursor(), 4);
 
-        // Cursor at boundary index 4 should be displayed at start of second wrapped line
+        // 境界インデックス4のカーソルは2番目の折り返し行の先頭に表示されるべき
         t.set_cursor(4);
         let area = Rect::new(0, 0, 4, 10);
         let (x, y) = t.cursor_pos(area).unwrap();
         assert_eq!((x, y), (0, 1));
 
-        // With state and small height, cursor should be visible at row 0, col 0
+        // ステートと小さい高さで、カーソルは行0、列0に見えるべき
         let small_area = Rect::new(0, 0, 4, 1);
         let state = TextAreaState::default();
         let (x, y) = t.cursor_pos_with_state(small_area, state).unwrap();
         assert_eq!((x, y), (0, 0));
 
-        // Place cursor in the middle of the second wrapped line ("efgh"), at 'g'
+        // カーソルを2番目の折り返し行（"efgh"）の中央、'g'に配置
         t.set_cursor(6);
-        // Move up should go to same column on previous wrapped line -> index 2 ('c')
+        // 上移動は前の折り返し行の同じ列に行くべき -> インデックス2（'c'）
         t.move_cursor_up();
         assert_eq!(t.cursor(), 2);
 
-        // Move down should return to same position on the next wrapped line -> back to index 6 ('g')
+        // 下移動は次の折り返し行の同じ位置に戻るべき -> インデックス6（'g'）に戻る
         t.move_cursor_down();
         assert_eq!(t.cursor(), 6);
 
-        // Move down again should go to third wrapped line. Target col is 2, but the line has len 2 -> clamp to end
+        // もう一度下移動で3番目の折り返し行へ。ターゲット列は2だが、行の長さは2 -> 末尾にクランプ
         t.move_cursor_down();
         assert_eq!(t.cursor(), t.text().len());
     }
@@ -1702,31 +1702,31 @@ mod tests {
         let mut state = TextAreaState::default();
         let mut buf = Buffer::empty(area);
 
-        // Start at beginning
+        // 先頭から開始
         t.set_cursor(0);
         ratatui::widgets::StatefulWidgetRef::render_ref(&(&t), area, &mut buf, &mut state);
         let (x, y) = t.cursor_pos_with_state(area, state).unwrap();
         assert_eq!((x, y), (0, 0));
 
-        // Move down to second visual line; should be at bottom row (row 1) within 2-line viewport
+        // 2番目の視覚的な行に下移動。2行ビューポート内の下端行（行1）にいるべき
         t.move_cursor_down();
         ratatui::widgets::StatefulWidgetRef::render_ref(&(&t), area, &mut buf, &mut state);
         let (x, y) = t.cursor_pos_with_state(area, state).unwrap();
         assert_eq!((x, y), (0, 1));
 
-        // Move down to third visual line; viewport scrolls and keeps cursor on bottom row
+        // 3番目の視覚的な行に下移動。ビューポートがスクロールし、カーソルを下端行に保持
         t.move_cursor_down();
         ratatui::widgets::StatefulWidgetRef::render_ref(&(&t), area, &mut buf, &mut state);
         let (x, y) = t.cursor_pos_with_state(area, state).unwrap();
         assert_eq!((x, y), (0, 1));
 
-        // Move up to second visual line; with current scroll, it appears on top row
+        // 2番目の視覚的な行に上移動。現在のスクロールで上端行に表示
         t.move_cursor_up();
         ratatui::widgets::StatefulWidgetRef::render_ref(&(&t), area, &mut buf, &mut state);
         let (x, y) = t.cursor_pos_with_state(area, state).unwrap();
         assert_eq!((x, y), (0, 0));
 
-        // Column preservation across moves: set to col 2 on first line, move down
+        // 移動を跨いだ列の保持：1行目の列2に設定し、下移動
         t.set_cursor(2);
         ratatui::widgets::StatefulWidgetRef::render_ref(&(&t), area, &mut buf, &mut state);
         let (x0, y0) = t.cursor_pos_with_state(area, state).unwrap();
@@ -1739,24 +1739,24 @@ mod tests {
 
     #[test]
     fn wrapped_navigation_with_newlines_and_spaces() {
-        // Include spaces and an explicit newline to exercise boundaries
+        // スペースと明示的な改行を含めて境界を検証
         let mut t = ta_with("word1  word2\nword3");
-        // Width 6 will wrap "word1  " and then "word2" before the newline
+        // 幅6は"word1  "を折り返し、その後改行前に"word2"
         let _ = t.desired_height(6);
 
-        // Put cursor on the second wrapped line before the newline, at column 1 of "word2"
+        // カーソルを改行前の2番目の折り返し行、"word2"の列1に配置
         let start_word2 = t.text().find("word2").unwrap();
         t.set_cursor(start_word2 + 1);
 
-        // Up should go to first wrapped line, column 1 -> index 1
+        // 上移動で1番目の折り返し行、列1 -> インデックス1
         t.move_cursor_up();
         assert_eq!(t.cursor(), 1);
 
-        // Down should return to the same visual column on "word2"
+        // 下移動で"word2"の同じ視覚的な列に戻る
         t.move_cursor_down();
         assert_eq!(t.cursor(), start_word2 + 1);
 
-        // Down again should cross the logical newline to the next visual line ("word3"), clamped to its length if needed
+        // もう一度下移動で論理改行を越えて次の視覚的な行（"word3"）へ、必要に応じて長さにクランプ
         t.move_cursor_down();
         let start_word3 = t.text().find("word3").unwrap();
         assert!(t.cursor() >= start_word3 && t.cursor() <= start_word3 + "word3".len());
@@ -1764,30 +1764,30 @@ mod tests {
 
     #[test]
     fn wrapped_navigation_with_wide_graphemes() {
-        // Four thumbs up, each of display width 2, with width 3 to force wrapping inside grapheme boundaries
+        // 4つのサムズアップ、各々表示幅2、幅3でグラフェム境界内での折り返しを強制
         let mut t = ta_with("👍👍👍👍");
         let _ = t.desired_height(3);
 
-        // Put cursor after the second emoji (which should be on first wrapped line)
+        // カーソルを2番目の絵文字の後に配置（1番目の折り返し行にあるべき）
         t.set_cursor("👍👍".len());
 
-        // Move down should go to the start of the next wrapped line (same column preserved but clamped)
+        // 下移動で次の折り返し行の先頭に行くべき（同じ列が保持されるがクランプ）
         t.move_cursor_down();
-        // We expect to land somewhere within the third emoji or at the start of it
+        // 3番目の絵文字内またはその先頭に着地することを期待
         let pos_after_down = t.cursor();
         assert!(pos_after_down >= "👍👍".len());
 
-        // Moving up should take us back to the original position
+        // 上移動で元の位置に戻るべき
         t.move_cursor_up();
         assert_eq!(t.cursor(), "👍👍".len());
     }
 
     #[test]
     fn fuzz_textarea_randomized() {
-        // Deterministic seed for reproducibility
-        // Seed the RNG based on the current day in Pacific Time (PST/PDT). This
-        // keeps the fuzz test deterministic within a day while still varying
-        // day-to-day to improve coverage.
+        // 再現性のための決定論的シード
+        // 太平洋時間（PST/PDT）の現在の日付に基づいてRNGをシード。
+        // これにより1日以内はファズテストが決定論的になりつつ、
+        // 日ごとに変化してカバレッジを向上。
         let pst_today_seed: u64 = (chrono::Utc::now() - chrono::Duration::hours(8))
             .date_naive()
             .and_hms_opt(0, 0, 0)
@@ -1799,18 +1799,18 @@ mod tests {
         for _case in 0..500 {
             let mut ta = TextArea::new();
             let mut state = TextAreaState::default();
-            // Track element payloads we insert. Payloads use characters '[' and ']' which
-            // are not produced by rand_grapheme(), avoiding accidental collisions.
+            // 挿入するエレメントペイロードを追跡。ペイロードは'['と']'を使用し、
+            // rand_grapheme()では生成されないため、偶発的な衝突を回避。
             let mut elem_texts: Vec<String> = Vec::new();
             let mut next_elem_id: usize = 0;
-            // Start with a random base string
+            // ランダムなベース文字列で開始
             let base_len = rng.random_range(0..30);
             let mut base = String::new();
             for _ in 0..base_len {
                 base.push_str(&rand_grapheme(&mut rng));
             }
             ta.set_text(&base);
-            // Choose a valid char boundary for initial cursor
+            // 初期カーソル用の有効な文字境界を選択
             let mut boundaries: Vec<usize> = vec![0];
             boundaries.extend(ta.text().char_indices().map(|(i, _)| i).skip(1));
             boundaries.push(ta.text().len());
@@ -1821,7 +1821,7 @@ mod tests {
             let mut height: u16 = rng.random_range(1..=4);
 
             for _step in 0..60 {
-                // Mostly stable width/height, occasionally change
+                // ほぼ安定した幅/高さ、時々変更
                 if rng.random_bool(0.1) {
                     width = rng.random_range(1..=12);
                 }
@@ -1829,10 +1829,10 @@ mod tests {
                     height = rng.random_range(1..=4);
                 }
 
-                // Pick an operation
+                // 操作を選択
                 match rng.random_range(0..18) {
                     0 => {
-                        // insert small random string at cursor
+                        // カーソル位置に小さなランダム文字列を挿入
                         let len = rng.random_range(0..6);
                         let mut s = String::new();
                         for _ in 0..len {
@@ -1841,7 +1841,7 @@ mod tests {
                         ta.insert_str(&s);
                     }
                     1 => {
-                        // replace_range with small random slice
+                        // 小さなランダムスライスでreplace_range
                         let mut b: Vec<usize> = vec![0];
                         b.extend(ta.text().char_indices().map(|(i, _)| i).skip(1));
                         b.push(ta.text().len());
@@ -1858,8 +1858,8 @@ mod tests {
                             s.push_str(&rand_grapheme(&mut rng));
                         }
                         let before = ta.text().len();
-                        // If the chosen range intersects an element, replace_range will expand to
-                        // element boundaries, so the naive size delta assertion does not hold.
+                        // 選択した範囲がエレメントと交差する場合、replace_rangeはエレメント境界まで
+                        // 拡張するため、単純なサイズ差分アサーションは成り立たない。
                         let intersects_element = elem_texts.iter().any(|payload| {
                             if let Some(pstart) = ta.text().find(payload) {
                                 let pend = pstart + payload.len();
@@ -1889,7 +1889,7 @@ mod tests {
                     11 => ta.move_cursor_to_beginning_of_line(true),
                     12 => ta.move_cursor_to_end_of_line(true),
                     13 => {
-                        // Insert an element with a unique sentinel payload
+                        // ユニークなセンチネルペイロードでエレメントを挿入
                         let payload =
                             format!("[[EL#{}:{}]]", next_elem_id, rng.random_range(1000..9999));
                         next_elem_id += 1;
@@ -1897,7 +1897,7 @@ mod tests {
                         elem_texts.push(payload);
                     }
                     14 => {
-                        // Try inserting inside an existing element (should clamp to boundary)
+                        // 既存エレメント内への挿入を試行（境界にクランプされるべき）
                         if let Some(payload) = elem_texts.choose(&mut rng).cloned()
                             && let Some(start) = ta.text().find(&payload)
                         {
@@ -1910,15 +1910,15 @@ mod tests {
                         }
                     }
                     15 => {
-                        // Replace a range that intersects an element -> whole element should be replaced
+                        // エレメントと交差する範囲を置換 -> エレメント全体が置換されるべき
                         if let Some(payload) = elem_texts.choose(&mut rng).cloned()
                             && let Some(start) = ta.text().find(&payload)
                         {
                             let end = start + payload.len();
-                            // Create an intersecting range [start-δ, end-δ2)
+                            // 交差する範囲 [start-δ, end-δ2) を作成
                             let mut s = start.saturating_sub(rng.random_range(0..=2));
                             let mut e = (end + rng.random_range(0..=2)).min(ta.text().len());
-                            // Align to char boundaries to satisfy String::replace_range contract
+                            // String::replace_rangeの契約を満たすため文字境界に揃える
                             let txt = ta.text();
                             while s > 0 && !txt.is_char_boundary(s) {
                                 s -= 1;
@@ -1927,7 +1927,7 @@ mod tests {
                                 e += 1;
                             }
                             if s < e {
-                                // Small replacement text
+                                // 小さな置換テキスト
                                 let mut srep = String::new();
                                 for _ in 0..rng.random_range(0..=2) {
                                     srep.push_str(&rand_grapheme(&mut rng));
@@ -1937,7 +1937,7 @@ mod tests {
                         }
                     }
                     16 => {
-                        // Try setting the cursor to a position inside an element; it should clamp out
+                        // カーソルをエレメント内部の位置に設定してみる。クランプされるべき
                         if let Some(payload) = elem_texts.choose(&mut rng).cloned()
                             && let Some(start) = ta.text().find(&payload)
                         {
@@ -1949,7 +1949,7 @@ mod tests {
                         }
                     }
                     _ => {
-                        // Jump to word boundaries
+                        // ワード境界にジャンプ
                         if rng.random_bool(0.5) {
                             let p = ta.beginning_of_previous_word();
                             ta.set_cursor(p);
@@ -1960,16 +1960,16 @@ mod tests {
                     }
                 }
 
-                // Sanity invariants
+                // 健全性不変条件
                 assert!(ta.cursor() <= ta.text().len());
 
-                // Element invariants
+                // エレメント不変条件
                 for payload in &elem_texts {
                     if let Some(start) = ta.text().find(payload) {
                         let end = start + payload.len();
-                        // 1) Text inside elements matches the initially set payload
+                        // 1) エレメント内のテキストは最初に設定されたペイロードと一致
                         assert_eq!(&ta.text()[start..end], payload);
-                        // 2) Cursor is never strictly inside an element
+                        // 2) カーソルは厳密にエレメント内部にない
                         let c = ta.cursor();
                         assert!(
                             c <= start || c >= end,
@@ -1978,23 +1978,23 @@ mod tests {
                     }
                 }
 
-                // Render and compute cursor positions; ensure they are in-bounds and do not panic
+                // レンダリングしてカーソル位置を計算。境界内にあることとパニックしないことを確認
                 let area = Rect::new(0, 0, width, height);
-                // Stateless render into an area tall enough for all wrapped lines
+                // すべての折り返し行に十分な高さのエリアへステートレスレンダリング
                 let total_lines = ta.desired_height(width);
                 let full_area = Rect::new(0, 0, width, total_lines.max(1));
                 let mut buf = Buffer::empty(full_area);
                 ratatui::widgets::WidgetRef::render_ref(&(&ta), full_area, &mut buf);
 
-                // cursor_pos: x must be within width when present
+                // cursor_pos：存在する場合xは幅内でなければならない
                 let _ = ta.cursor_pos(area);
 
-                // cursor_pos_with_state: always within viewport rows
+                // cursor_pos_with_state：常にビューポート行内
                 let (_x, _y) = ta
                     .cursor_pos_with_state(area, state)
                     .unwrap_or((area.x, area.y));
 
-                // Stateful render should not panic, and updates scroll
+                // ステートフルレンダリングはパニックせず、スクロールを更新すべき
                 let mut sbuf = Buffer::empty(area);
                 ratatui::widgets::StatefulWidgetRef::render_ref(
                     &(&ta),
@@ -2003,9 +2003,9 @@ mod tests {
                     &mut state,
                 );
 
-                // After wrapping, desired height equals the number of lines we would render without scroll
+                // 折り返し後、desired heightはスクロールなしでレンダリングする行数と等しい
                 let total_lines = total_lines as usize;
-                // state.scroll must not exceed total_lines when content fits within area height
+                // コンテンツがエリアの高さに収まる場合、state.scrollはtotal_linesを超えてはならない
                 if (height as usize) >= total_lines {
                     assert_eq!(state.scroll, 0);
                 }

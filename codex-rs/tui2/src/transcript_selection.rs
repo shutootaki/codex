@@ -1,68 +1,64 @@
-//! Transcript selection primitives.
+//! トランスクリプト選択プリミティブ。
 //!
-//! The transcript (history) viewport is rendered as a flattened list of visual
-//! lines after wrapping. Selection in the transcript needs to be stable across
-//! scrolling and terminal resizes, so endpoints are expressed in
-//! *content-relative* coordinates:
+//! トランスクリプト（履歴）ビューポートは折り返し後のフラット化された視覚的な行の
+//! リストとしてレンダリングされる。トランスクリプト内の選択はスクロールや
+//! ターミナルリサイズを跨いで安定している必要があるため、エンドポイントは
+//! *コンテンツ相対*座標で表現される:
 //!
-//! - `line_index`: index into the flattened, wrapped transcript lines (visual
-//!   lines).
-//! - `column`: a zero-based offset within that visual line, measured from the
-//!   first content column to the right of the gutter.
+//! - `line_index`: フラット化され折り返されたトランスクリプト行（視覚的な行）への
+//!   インデックス。
+//! - `column`: その視覚的な行内の0ベースオフセットで、ガターの右側の最初の
+//!   コンテンツ列から測定。
 //!
-//! These coordinates are intentionally independent of the current viewport: the
-//! user can scroll after selecting, and the selection should continue to refer
-//! to the same conversation content.
+//! これらの座標は意図的に現在のビューポートと独立している: ユーザーは選択後に
+//! スクロールでき、選択は同じ会話コンテンツを参照し続けるべき。
 //!
-//! Clipboard reconstruction is implemented in `transcript_copy` (including
-//! off-screen lines), while keybinding detection and the on-screen copy
-//! affordance live in `transcript_copy_ui`.
+//! クリップボードの再構築は `transcript_copy` で実装されており（画面外の行を含む）、
+//! キーバインド検出と画面上のコピーアフォーダンスは `transcript_copy_ui` にある。
 //!
-//! ## Mouse selection semantics
+//! ## マウス選択セマンティクス
 //!
-//! The transcript supports click-and-drag selection. To avoid leaving a
-//! distracting 1-cell highlight on a simple click, the selection only becomes
-//! active once a drag updates the head point.
+//! トランスクリプトはクリック&ドラッグ選択をサポート。シンプルクリックで
+//! 邪魔な1セルハイライトを残さないよう、ドラッグでheadポイントが更新されるまで
+//! 選択はアクティブにならない。
 
 use crate::tui::scrolling::TranscriptScroll;
 
-/// Number of columns reserved for the transcript gutter (bullet/prefix space).
+/// トランスクリプトガター（バレット/プレフィックススペース）用に予約された列数。
 ///
-/// Transcript rendering prefixes each line with a short gutter (e.g. `• ` or
-/// continuation padding). Selection coordinates intentionally exclude this
-/// gutter so selection/copy operates on content columns instead of terminal
-/// absolute columns.
+/// トランスクリプトレンダリングは各行の先頭に短いガター（例: `• ` または
+/// 継続パディング）を付ける。選択座標は意図的にこのガターを除外し、
+/// 選択/コピーがターミナル絶対列ではなくコンテンツ列で動作するようにする。
 pub(crate) const TRANSCRIPT_GUTTER_COLS: u16 = 2;
 
-/// Content-relative selection within the inline transcript viewport.
+/// インライントランスクリプトビューポート内のコンテンツ相対選択。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct TranscriptSelection {
-    /// The initial selection point (where the selection drag started).
+    /// 初期選択ポイント（選択ドラッグが開始した場所）。
     ///
-    /// This remains fixed while dragging; the highlighted region is the span
-    /// between `anchor` and `head`.
+    /// ドラッグ中は固定のまま。ハイライトされた領域は `anchor` と `head` の間のスパン。
     pub(crate) anchor: Option<TranscriptSelectionPoint>,
-    /// The current selection point (where the selection drag currently ends).
+    /// 現在の選択ポイント（選択ドラッグが現在終了している場所）。
     ///
-    /// This is `None` until the user drags, which prevents a simple click from
-    /// creating a persistent selection highlight.
+    /// ユーザーがドラッグするまで `None`。これによりシンプルクリックが
+    /// 永続的な選択ハイライトを作成することを防ぐ。
     pub(crate) head: Option<TranscriptSelectionPoint>,
 }
 
-/// A single endpoint of a transcript selection.
+/// トランスクリプト選択の単一エンドポイント。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct TranscriptSelectionPoint {
-    /// Index into the flattened, wrapped transcript lines.
+    /// フラット化され折り返されたトランスクリプト行へのインデックス。
     pub(crate) line_index: usize,
-    /// Zero-based content column (excluding the gutter).
+    /// 0ベースのコンテンツ列（ガターを除外）。
     ///
-    /// This is not a terminal absolute column: callers add the gutter offset
-    /// when mapping it to a rendered buffer row.
+    /// これはターミナル絶対列ではない: 呼び出し元はレンダリングされた
+    /// バッファ行にマッピングする際にガターオフセットを加算。
     pub(crate) column: u16,
 }
 
 impl TranscriptSelectionPoint {
-    /// Create a selection endpoint at a given wrapped line index and column.
+    /// 指定された折り返し行インデックスと列で選択エンドポイントを作成。
     pub(crate) const fn new(line_index: usize, column: u16) -> Self {
         Self { line_index, column }
     }
@@ -74,7 +70,7 @@ impl From<(usize, u16)> for TranscriptSelectionPoint {
     }
 }
 
-/// Return `(start, end)` with `start <= end` in transcript order.
+/// トランスクリプト順序で `start <= end` となる `(start, end)` を返す。
 pub(crate) fn ordered_endpoints(
     anchor: TranscriptSelectionPoint,
     head: TranscriptSelectionPoint,
@@ -86,14 +82,13 @@ pub(crate) fn ordered_endpoints(
     }
 }
 
-/// Begin a potential transcript selection (left button down).
+/// 潜在的なトランスクリプト選択を開始（左ボタンダウン）。
 ///
-/// This records an anchor point and clears any existing head. The selection is
-/// not considered "active" until a drag sets a head, which avoids highlighting
-/// a 1-cell region on simple click.
+/// アンカーポイントを記録し、既存のheadをクリア。ドラッグでheadが設定されるまで
+/// 選択は「アクティブ」とは見なされず、シンプルクリックで1セル領域を
+/// ハイライトすることを回避。
 ///
-/// Returns whether the selection changed (useful to decide whether to request a
-/// redraw).
+/// 選択が変更されたかどうかを返す（再描画を要求するかどうかの判断に有用）。
 pub(crate) fn on_mouse_down(
     selection: &mut TranscriptSelection,
     point: Option<TranscriptSelectionPoint>,
@@ -106,35 +101,33 @@ pub(crate) fn on_mouse_down(
     *selection != before
 }
 
-/// The outcome of a mouse drag update.
+/// マウスドラッグ更新の結果。
 ///
-/// This is returned by [`on_mouse_drag`]. It separates selection state updates
-/// from `App`-level actions, so callers can decide when to schedule redraws or
-/// lock the transcript scroll position.
+/// [`on_mouse_drag`] によって返される。選択状態の更新を `App` レベルのアクションから
+/// 分離し、呼び出し元が再描画のスケジュールやトランスクリプトスクロール位置の
+/// ロックをいつ行うか決定できるようにする。
 ///
-/// `lock_scroll` indicates the caller should lock the transcript viewport (if
-/// currently following the bottom) so ongoing streaming output does not move
-/// the selection under the cursor.
+/// `lock_scroll` は呼び出し元がトランスクリプトビューポートをロックすべき
+/// （現在下部に追従している場合）ことを示し、進行中のストリーミング出力が
+/// カーソル下の選択を移動しないようにする。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct MouseDragOutcome {
-    /// Whether the selection changed (useful to decide whether to request a
-    /// redraw).
+    /// 選択が変更されたかどうか（再描画を要求するかどうかの判断に有用）。
     pub(crate) changed: bool,
-    /// Whether the caller should lock the transcript scroll position.
+    /// 呼び出し元がトランスクリプトスクロール位置をロックすべきかどうか。
     pub(crate) lock_scroll: bool,
 }
 
-/// Update the selection state for a left-button drag.
+/// 左ボタンドラッグの選択状態を更新。
 ///
-/// This sets the selection head (creating an active selection) and returns:
+/// 選択のhead（アクティブな選択を作成）を設定し、以下を返す:
 ///
-/// - `changed`: whether the selection state changed (useful to decide whether to
-///   request a redraw).
-/// - `lock_scroll`: whether the caller should lock transcript scrolling to
-///   freeze the viewport under the selection while streaming output arrives.
+/// - `changed`: 選択状態が変更されたかどうか（再描画を要求するかどうかの判断に有用）。
+/// - `lock_scroll`: ストリーミング出力到着中に選択下のビューポートを固定するため、
+///   呼び出し元がトランスクリプトスクロールをロックすべきかどうか。
 ///
-/// `point` is expected to already be clamped to the transcript's content area
-/// (e.g. not in the gutter). If `point` is `None`, this is a no-op.
+/// `point` は既にトランスクリプトのコンテンツ領域にクランプされていることを想定
+/// （例: ガター内ではない）。`point` が `None` の場合、これはno-op。
 pub(crate) fn on_mouse_drag(
     selection: &mut TranscriptSelection,
     scroll: &TranscriptScroll,
@@ -155,24 +148,22 @@ pub(crate) fn on_mouse_drag(
     }
 }
 
-/// Finalize the selection state when the left button is released.
+/// 左ボタンがリリースされたときに選択状態を確定。
 ///
-/// If the selection never became active (no head) or the head ended up equal to
-/// the anchor, the selection is cleared so a click does not leave a persistent
-/// highlight.
+/// 選択がアクティブにならなかった（headなし）場合、またはheadがanchorと等しく
+/// なった場合、選択はクリアされ、クリックが永続的なハイライトを残さないようにする。
 ///
-/// Returns whether the selection changed (useful to decide whether to request a
-/// redraw).
+/// 選択が変更されたかどうかを返す（再描画を要求するかどうかの判断に有用）。
 pub(crate) fn on_mouse_up(selection: &mut TranscriptSelection) -> bool {
     let before = *selection;
     end(selection);
     *selection != before
 }
 
-/// Begin a potential selection by recording an anchor and clearing any head.
+/// アンカーを記録しheadをクリアして潜在的な選択を開始。
 ///
-/// This ensures a plain click does not create an active selection/highlight.
-/// The selection becomes active on the first drag that sets `head`.
+/// これによりプレーンクリックがアクティブな選択/ハイライトを作成しないことを保証。
+/// `head` を設定する最初のドラッグで選択がアクティブになる。
 fn begin(selection: &mut TranscriptSelection, point: TranscriptSelectionPoint) {
     *selection = TranscriptSelection {
         anchor: Some(point),
@@ -180,11 +171,10 @@ fn begin(selection: &mut TranscriptSelection, point: TranscriptSelectionPoint) {
     };
 }
 
-/// Update selection state during a drag by setting `head` when anchored.
+/// アンカーされている場合に `head` を設定してドラッグ中の選択状態を更新。
 ///
-/// Returns whether the caller should lock the transcript scroll position while
-/// streaming and following the bottom, so new output doesn't move the selection
-/// under the cursor.
+/// ストリーミング中で下部に追従している場合に、新しい出力がカーソル下の選択を
+/// 移動しないよう、呼び出し元がトランスクリプトスクロール位置をロックすべきかを返す。
 fn drag(
     selection: &mut TranscriptSelection,
     scroll: &TranscriptScroll,
@@ -203,10 +193,10 @@ fn drag(
     should_lock_scroll
 }
 
-/// Finalize selection on mouse up.
+/// マウスアップで選択を確定。
 ///
-/// Clears the selection if it never became active (no head) or if the head
-/// ended up equal to the anchor, so a click doesn't leave a 1-cell highlight.
+/// 選択がアクティブにならなかった（headなし）場合、またはheadがanchorと等しく
+/// なった場合に選択をクリアし、クリックが1セルハイライトを残さないようにする。
 fn end(selection: &mut TranscriptSelection) {
     if selection.head.is_none() || selection.anchor == selection.head {
         *selection = TranscriptSelection::default();

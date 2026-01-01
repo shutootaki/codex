@@ -87,11 +87,11 @@ pub struct AppExitInfo {
     pub token_usage: TokenUsage,
     pub conversation_id: Option<ConversationId>,
     pub update_action: Option<UpdateAction>,
-    /// ANSI-styled transcript lines to print after the TUI exits.
+    /// TUI終了後に出力するANSIスタイル付きトランスクリプト行。
     ///
-    /// These lines are rendered against the same width as the final TUI
-    /// viewport and include styling (colors, bold, etc.) so that scrollback
-    /// preserves the visual structure of the on-screen transcript.
+    /// これらの行は最終TUIビューポートと同じ幅でレンダリングされ、
+    /// スタイリング（色、太字など）を含むため、スクロールバックで
+    /// 画面上のトランスクリプトの視覚的構造が保持される。
     pub session_lines: Vec<String>,
 }
 
@@ -318,7 +318,7 @@ pub(crate) struct App {
     pub(crate) app_event_tx: AppEventSender,
     pub(crate) chat_widget: ChatWidget,
     pub(crate) auth_manager: Arc<AuthManager>,
-    /// Config is stored here so we can recreate ChatWidgets as needed.
+    /// 必要に応じてChatWidgetを再作成できるようConfigをここに保存。
     pub(crate) config: Config,
     pub(crate) current_model: String,
     pub(crate) active_profile: Option<String>,
@@ -335,30 +335,30 @@ pub(crate) struct App {
     transcript_total_lines: usize,
     transcript_copy_ui: TranscriptCopyUi,
 
-    // Pager overlay state (Transcript or Static like Diff)
+    // ページャーオーバーレイ状態（トランスクリプトまたはDiffなどの静的）
     pub(crate) overlay: Option<Overlay>,
     pub(crate) deferred_history_lines: Vec<Line<'static>>,
     has_emitted_history_lines: bool,
 
     pub(crate) enhanced_keys_supported: bool,
 
-    /// Controls the animation thread that sends CommitTick events.
+    /// CommitTickイベントを送信するアニメーションスレッドを制御。
     pub(crate) commit_anim_running: Arc<AtomicBool>,
 
     scroll_config: ScrollConfig,
     scroll_state: MouseScrollState,
 
-    // Esc-backtracking state grouped
+    // Escバックトラック状態をグループ化
     pub(crate) backtrack: crate::app_backtrack::BacktrackState,
     pub(crate) feedback: codex_feedback::CodexFeedback,
-    /// Set when the user confirms an update; propagated on exit.
+    /// ユーザーが更新を確認した際に設定され、終了時に伝播される。
     pub(crate) pending_update_action: Option<UpdateAction>,
 
-    /// Ignore the next ShutdownComplete event when we're intentionally
-    /// stopping a conversation (e.g., before starting a new one).
+    /// 意図的に会話を停止する際（例：新しい会話を開始する前）に
+    /// 次のShutdownCompleteイベントを無視する。
     suppress_shutdown_complete: bool,
 
-    // One-shot suppression of the next world-writable scan after user confirmation.
+    // ユーザー確認後の次のworld-writableスキャンを一度だけ抑制。
     skip_world_writable_scan_once: bool,
 }
 impl App {
@@ -515,7 +515,7 @@ impl App {
             skip_world_writable_scan_once: false,
         };
 
-        // On startup, if Agent mode (workspace-write) or ReadOnly is active, warn about world-writable dirs on Windows.
+        // 起動時、Agentモード（workspace-write）またはReadOnlyがアクティブな場合、Windowsでworld-writableディレクトリについて警告。
         #[cfg(target_os = "windows")]
         {
             let should_check = codex_core::get_platform_sandbox().is_some()
@@ -608,8 +608,8 @@ impl App {
                     self.handle_mouse_event(tui, mouse_event);
                 }
                 TuiEvent::Paste(pasted) => {
-                    // Many terminals convert newlines to \r when pasting (e.g., iTerm2),
-                    // but tui-textarea expects \n. Normalize CR to LF.
+                    // 多くのターミナルはペースト時に改行を\rに変換する（例: iTerm2）が、
+                    // tui-textareaは\nを期待する。CRをLFに正規化。
                     // [tui-textarea]: https://github.com/rhysd/tui-textarea/blob/4d18622eeac13b309e0ff6a55a46ac6706da68cf/src/textarea.rs#L782-L783
                     // [iTerm2]: https://github.com/gnachman/iTerm2/blob/5d0c0d9f68523cbd0494dad5422998964a2ecd8d/sources/iTermPasteHelper.m#L206-L216
                     let pasted = pasted.replace("\r", "\n");
@@ -816,22 +816,22 @@ impl App {
         chat_top
     }
 
-    /// Handle mouse interaction in the main transcript view.
+    /// メイントランスクリプトビューでのマウスインタラクションを処理。
     ///
-    /// - Mouse wheel movement scrolls the conversation history using stream-based
-    ///   normalization (events-per-line factor, discrete vs. continuous streams),
-    ///   independent of the terminal's own scrollback.
-    /// - Mouse drags adjust a text selection defined in terms of
-    ///   flattened transcript lines and columns, so the selection is anchored
-    ///   to the underlying content rather than absolute screen rows.
-    /// - When the user drags to extend a selection while the view is following the bottom
-    ///   and a task is actively running (e.g., streaming a response), the scroll mode is
-    ///   first converted into an anchored position so that ongoing updates no longer move
-    ///   the viewport under the selection. A simple click without a drag does not change
-    ///   scroll behavior.
-    /// - Mouse events outside the transcript area (e.g. over the composer/footer) must not
-    ///   start or mutate transcript selection state. A left-click outside the transcript
-    ///   clears any existing transcript selection so the user can dismiss the highlight.
+    /// - マウスホイール移動はストリームベースの正規化（イベント毎行係数、
+    ///   離散vs連続ストリーム）を使用して会話履歴をスクロールし、
+    ///   ターミナル自体のスクロールバックとは独立。
+    /// - マウスドラッグはフラット化されたトランスクリプト行と列で定義された
+    ///   テキスト選択を調整し、選択は絶対画面行ではなく基礎コンテンツに固定。
+    /// - ユーザーがビューが最下部を追従中かつタスクがアクティブに実行中
+    ///   （例：レスポンスをストリーミング中）に選択を拡張するためドラッグすると、
+    ///   スクロールモードはまずアンカー位置に変換され、進行中の更新が
+    ///   選択下のビューポートを移動しなくなる。ドラッグなしの単純クリックは
+    ///   スクロール動作を変更しない。
+    /// - トランスクリプト領域外のマウスイベント（例：コンポーザー/フッター上）は
+    ///   トランスクリプト選択状態を開始または変更してはならない。
+    ///   トランスクリプト外での左クリックは既存の選択をクリアし、
+    ///   ユーザーがハイライトを解除できるようにする。
     fn handle_mouse_event(
         &mut self,
         tui: &mut tui::Tui,
@@ -855,7 +855,7 @@ impl App {
             return;
         }
 
-        // Only handle events over the transcript area above the composer.
+        // コンポーザー上部のトランスクリプト領域上のイベントのみ処理。
         let transcript_height = height.saturating_sub(chat_height);
         if transcript_height == 0 {
             return;
@@ -870,11 +870,11 @@ impl App {
         let base_x = transcript_area.x.saturating_add(TRANSCRIPT_GUTTER_COLS);
         let max_x = transcript_area.right().saturating_sub(1);
 
-        // Treat the transcript as the only interactive region for transcript selection.
+        // トランスクリプト選択において、トランスクリプトを唯一のインタラクティブ領域として扱う。
         //
-        // This prevents clicks in the composer/footer from starting or extending a transcript
-        // selection, while still allowing a left-click outside the transcript to clear an
-        // existing highlight.
+        // これによりコンポーザー/フッターでのクリックがトランスクリプト選択を開始または
+        // 拡張することを防ぎつつ、トランスクリプト外での左クリックで既存のハイライトを
+        // クリアすることは引き続き許可する。
         if mouse_event.row < transcript_area.y || mouse_event.row >= transcript_area.bottom() {
             if matches!(
                 mouse_event.kind,
@@ -883,8 +883,8 @@ impl App {
                 || self.transcript_selection.head.is_some())
             {
                 self.transcript_selection = TranscriptSelection::default();
-                // Mouse events do not inherently trigger a redraw; schedule one so the cleared
-                // highlight is reflected immediately.
+                // マウスイベントは本質的に再描画をトリガーしない；クリアされた
+                // ハイライトが即座に反映されるよう再描画をスケジュール。
                 tui.frame_requester().schedule_frame();
             }
             return;
@@ -988,39 +988,39 @@ impl App {
         }
     }
 
-    /// Convert a single mouse scroll event (direction-only) into a normalized scroll update.
+    /// 単一のマウススクロールイベント（方向のみ）を正規化されたスクロール更新に変換。
     ///
-    /// This delegates to [`MouseScrollState::on_scroll_event`] using the current [`ScrollConfig`].
-    /// The returned [`ScrollUpdate`] is intentionally split into:
+    /// 現在の[`ScrollConfig`]を使用して[`MouseScrollState::on_scroll_event`]に委譲。
+    /// 返される[`ScrollUpdate`]は意図的に以下に分割される:
     ///
-    /// - `lines`: a *delta* in visual lines to apply immediately to the transcript viewport.
-    ///   - Sign convention matches [`ScrollDirection`] (`Up` is negative; `Down` is positive).
-    ///   - May be 0 in trackpad-like mode while sub-line fractions are still accumulating.
-    /// - `next_tick_in`: an optional delay after which we should trigger a follow-up tick.
-    ///   This is required because stream closure is defined by a *time gap* rather than an
-    ///   explicit "gesture end" event. See [`App::apply_scroll_update`] and
-    ///   [`App::handle_scroll_tick`].
+    /// - `lines`: トランスクリプトビューポートに即座に適用する視覚的行の*デルタ*。
+    ///   - 符号規約は[`ScrollDirection`]に一致（`Up`は負、`Down`は正）。
+    ///   - トラックパッド風モードでサブ行の端数がまだ蓄積中の場合は0になりうる。
+    /// - `next_tick_in`: フォローアップティックをトリガーすべきオプションの遅延。
+    ///   ストリームクローズは明示的な「ジェスチャー終了」イベントではなく*時間ギャップ*で
+    ///   定義されるため必要。[`App::apply_scroll_update`]と
+    ///   [`App::handle_scroll_tick`]を参照。
     ///
-    /// In TUI2, that follow-up tick is driven via `TuiEvent::Draw`: we schedule a frame, and on
-    /// the next draw we call [`MouseScrollState::on_tick`] to close idle streams and flush any
-    /// newly-reached whole lines. This prevents perceived "stop lag" where accumulated scroll only
-    /// applies once the next user input arrives.
+    /// TUI2では、そのフォローアップティックは`TuiEvent::Draw`経由で駆動される: フレームを
+    /// スケジュールし、次の描画で[`MouseScrollState::on_tick`]を呼び出してアイドルストリームを
+    /// クローズし、新たに到達した整数行をフラッシュする。これにより蓄積されたスクロールが
+    /// 次のユーザー入力到着時にのみ適用される「停止ラグ」の知覚を防ぐ。
     fn mouse_scroll_update(&mut self, direction: ScrollDirection) -> ScrollUpdate {
         self.scroll_state
             .on_scroll_event(direction, self.scroll_config)
     }
 
-    /// Apply a [`ScrollUpdate`] to the transcript viewport and schedule any needed follow-up tick.
+    /// [`ScrollUpdate`]をトランスクリプトビューポートに適用し、必要なフォローアップティックをスケジュール。
     ///
-    /// `update.lines` is applied immediately via [`App::scroll_transcript`].
+    /// `update.lines`は[`App::scroll_transcript`]経由で即座に適用される。
     ///
-    /// If `update.next_tick_in` is `Some`, we schedule a future frame so `TuiEvent::Draw` can call
-    /// [`App::handle_scroll_tick`] and close the stream after it goes idle and/or cadence-flush
-    /// pending whole lines.
+    /// `update.next_tick_in`が`Some`の場合、`TuiEvent::Draw`が[`App::handle_scroll_tick`]を
+    /// 呼び出してアイドル後にストリームをクローズおよび/または保留中の整数行をケイデンス
+    /// フラッシュできるよう、将来のフレームをスケジュール。
     ///
-    /// `schedule_frame` is forwarded to [`App::scroll_transcript`] and controls whether scrolling
-    /// should request an additional draw. Pass `false` when applying scroll during a
-    /// `TuiEvent::Draw` tick to avoid redundant frames.
+    /// `schedule_frame`は[`App::scroll_transcript`]に転送され、スクロールが追加の描画を
+    /// 要求すべきかを制御。`TuiEvent::Draw`ティック中にスクロールを適用する際は
+    /// 冗長なフレームを避けるため`false`を渡す。
     fn apply_scroll_update(
         &mut self,
         tui: &mut tui::Tui,
@@ -1037,17 +1037,15 @@ impl App {
         }
     }
 
-    /// Drive stream closure and cadence-based flushing for mouse scrolling.
+    /// マウススクロールのストリームクローズとケイデンスベースのフラッシュを駆動。
     ///
-    /// This is called on every `TuiEvent::Draw` before rendering. If a scroll stream is active, it
-    /// may:
+    /// レンダリング前の毎`TuiEvent::Draw`で呼び出される。スクロールストリームがアクティブな場合:
     ///
-    /// - Close the stream once it has been idle for longer than the stream-gap threshold.
-    /// - Flush whole-line deltas on the redraw cadence for trackpad-like streams, even if no new
-    ///   events arrive.
+    /// - ストリームギャップ閾値より長くアイドルになったらストリームをクローズ。
+    /// - トラックパッド風ストリームでは、新しいイベントが到着しなくても
+    ///   再描画ケイデンスで整数行デルタをフラッシュ。
     ///
-    /// The resulting update is applied with `schedule_frame = false` because we are already in a
-    /// draw tick.
+    /// 既に描画ティック中のため、結果の更新は`schedule_frame = false`で適用される。
     fn handle_scroll_tick(&mut self, tui: &mut tui::Tui) {
         let Some((visible_lines, width)) = self.transcript_scroll_dimensions(tui) else {
             return;
@@ -1056,14 +1054,15 @@ impl App {
         self.apply_scroll_update(tui, update, visible_lines, width, false);
     }
 
-    /// Compute the transcript viewport dimensions used for scrolling.
+    /// スクロールに使用するトランスクリプトビューポートの寸法を計算。
     ///
-    /// Mouse scrolling is applied in terms of "visible transcript lines": the terminal height
-    /// minus the chat composer height. We compute this from the last known terminal size to avoid
-    /// querying the terminal during non-draw events.
+    /// マウススクロールは「表示可能なトランスクリプト行」（ターミナル高さから
+    /// チャットコンポーザーの高さを引いたもの）の観点で適用される。
+    /// 非描画イベント中にターミナルをクエリすることを避けるため、
+    /// 最後に知られたターミナルサイズから計算。
     ///
-    /// Returns `(visible_lines, width)` or `None` when the terminal is not yet sized or the chat
-    /// area consumes the full height.
+    /// ターミナルがまだサイズ設定されていないか、チャット領域が全高さを
+    /// 消費している場合は`None`、それ以外は`(visible_lines, width)`を返す。
     fn transcript_scroll_dimensions(&self, tui: &tui::Tui) -> Option<(usize, u16)> {
         let size = tui.terminal.last_known_screen_size;
         let width = size.width;
@@ -1085,15 +1084,15 @@ impl App {
         Some((transcript_height as usize, width))
     }
 
-    /// Scroll the transcript by a number of visual lines.
+    /// トランスクリプトを指定された視覚的行数だけスクロール。
     ///
-    /// This is the shared implementation behind mouse wheel movement and PgUp/PgDn keys in
-    /// the main view. Scroll state is expressed in terms of transcript cells and their
-    /// internal line indices, so scrolling refers to logical conversation content and
-    /// remains stable even as wrapping or streaming causes visual reflows.
+    /// これはメインビューでのマウスホイール移動とPgUp/PgDnキーの背後にある
+    /// 共有実装。スクロール状態はトランスクリプトセルとその内部行インデックスの
+    /// 観点で表現されるため、スクロールは論理的な会話コンテンツを参照し、
+    /// 折り返しやストリーミングが視覚的リフローを引き起こしても安定を保つ。
     ///
-    /// `schedule_frame` controls whether to request an extra draw; pass `false` when applying
-    /// scroll during a `TuiEvent::Draw` tick to avoid redundant frames.
+    /// `schedule_frame`は追加の描画を要求するかを制御；`TuiEvent::Draw`ティック中に
+    /// スクロールを適用する際は冗長なフレームを避けるため`false`を渡す。
     fn scroll_transcript(
         &mut self,
         tui: &mut tui::Tui,
@@ -1114,18 +1113,18 @@ impl App {
                 .scrolled_by(delta_lines, &line_meta, visible_lines);
 
         if schedule_frame {
-            // Request a redraw; the frame scheduler coalesces bursts and clamps to 60fps.
+            // 再描画を要求；フレームスケジューラはバーストを統合し60fpsに制限。
             tui.frame_requester().schedule_frame();
         }
     }
 
-    /// Convert a `ToBottom` (auto-follow) scroll state into a fixed anchor at the current view.
+    /// `ToBottom`（自動追従）スクロール状態を現在のビューでの固定アンカーに変換。
     ///
-    /// When the user begins a mouse selection while new output is streaming in, the view
-    /// should stop auto-following the latest line so the selection stays on the intended
-    /// content. This helper inspects the flattened transcript at the given width, derives
-    /// a concrete position corresponding to the current top row, and switches into a scroll
-    /// mode that keeps that position stable until the user scrolls again.
+    /// 新しい出力がストリーミング中にユーザーがマウス選択を開始した場合、
+    /// ビューは最新行の自動追従を停止し、選択が意図したコンテンツに留まるべき。
+    /// このヘルパーは指定された幅でフラット化されたトランスクリプトを検査し、
+    /// 現在の上端行に対応する具体的な位置を導出し、ユーザーが再度スクロールするまで
+    /// その位置を安定に保つスクロールモードに切り替える。
     fn lock_transcript_scroll_to_current_view(&mut self, visible_lines: usize, width: u16) {
         if self.transcript_cells.is_empty() || visible_lines == 0 || width == 0 {
             return;
@@ -1148,7 +1147,7 @@ impl App {
         let top_offset = match self.transcript_scroll {
             TranscriptScroll::ToBottom => max_start,
             TranscriptScroll::Scrolled { .. } => {
-                // Already anchored; nothing to lock.
+                // 既にアンカー済み；ロック不要。
                 return;
             }
         };
@@ -1158,13 +1157,13 @@ impl App {
         }
     }
 
-    /// Apply the current transcript selection to the given buffer.
+    /// 現在のトランスクリプト選択を指定されたバッファに適用。
     ///
-    /// The selection is defined in terms of flattened wrapped transcript line
-    /// indices and columns. This method maps those content-relative endpoints
-    /// into the currently visible viewport based on `transcript_view_top` and
-    /// `transcript_total_lines`, so the highlight moves with the content as the
-    /// user scrolls.
+    /// 選択はフラット化され折り返されたトランスクリプト行インデックスと列の観点で
+    /// 定義される。このメソッドはこれらのコンテンツ相対エンドポイントを
+    /// `transcript_view_top`と`transcript_total_lines`に基づいて現在表示中の
+    /// ビューポートにマッピングし、ユーザーがスクロールしてもハイライトが
+    /// コンテンツと共に移動するようにする。
     fn apply_transcript_selection(&self, area: Rect, buf: &mut Buffer) {
         let (anchor, head) = match (
             self.transcript_selection.anchor,
@@ -1209,10 +1208,9 @@ impl App {
             }
 
             let (text_start, text_end) = match (first_text_x, last_text_x) {
-                // Treat indentation spaces as part of the selectable region by
-                // starting from the first content column to the right of the
-                // transcript gutter, but still clamp to the last non-space
-                // glyph so trailing padding is not included.
+                // インデントスペースを選択可能領域の一部として扱うため、
+                // トランスクリプトガターの右側の最初のコンテンツ列から開始するが、
+                // 末尾パディングが含まれないよう最後の非スペースグリフに制限。
                 (Some(_), Some(e)) => (base_x, e),
                 _ => continue,
             };
@@ -1250,18 +1248,17 @@ impl App {
         }
     }
 
-    /// Copy the currently selected transcript region to the system clipboard.
+    /// 現在選択されているトランスクリプト領域をシステムクリップボードにコピー。
     ///
-    /// The selection is defined in terms of flattened wrapped transcript line
-    /// indices and columns, and this method reconstructs the same wrapped
-    /// transcript used for on-screen rendering so the copied text closely
-    /// matches the highlighted region.
+    /// 選択はフラット化され折り返されたトランスクリプト行インデックスと列の観点で
+    /// 定義され、このメソッドは画面上のレンダリングに使用されるのと同じ折り返し
+    /// トランスクリプトを再構築し、コピーされたテキストがハイライトされた領域に
+    /// 近く一致するようにする。
     ///
-    /// Important: copy operates on the selection's full content-relative range,
-    /// not just the current viewport. A selection can extend outside the visible
-    /// region (for example, by scrolling after selecting, or by selecting while
-    /// autoscrolling), and we still want the clipboard payload to reflect the
-    /// entire selected transcript.
+    /// 重要: コピーは現在のビューポートだけでなく、選択のコンテンツ相対範囲全体に
+    /// 対して動作する。選択は表示領域の外に拡張できる（例えば、選択後にスクロール
+    /// したり、自動スクロール中に選択したり）ため、クリップボードのペイロードは
+    /// 選択されたトランスクリプト全体を反映すべき。
     fn copy_transcript_selection(&mut self, tui: &tui::Tui) {
         let size = tui.terminal.last_known_screen_size;
         let width = size.width;
@@ -1296,8 +1293,8 @@ impl App {
         self.transcript_copy_ui.key_binding()
     }
 
-    /// Map a mouse position in the transcript area to a content-relative
-    /// selection point, if there is transcript content to select.
+    /// トランスクリプト領域内のマウス位置をコンテンツ相対選択ポイントに
+    /// マッピング（選択可能なトランスクリプトコンテンツがある場合）。
     fn transcript_point_from_coordinates(
         &self,
         transcript_area: Rect,
@@ -1433,7 +1430,7 @@ impl App {
                     ResumeSelection::Exit | ResumeSelection::StartFresh => {}
                 }
 
-                // Leaving alt-screen may blank the inline viewport; force a redraw either way.
+                // オルトスクリーンを離れるとインラインビューポートが空白になる可能性がある；いずれにせよ再描画を強制。
                 tui.frame_requester().schedule_frame();
             }
             AppEvent::InsertHistoryCell(cell) => {
@@ -1445,9 +1442,9 @@ impl App {
                 self.transcript_cells.push(cell.clone());
                 let mut display = cell.display_lines(tui.terminal.last_known_screen_size.width);
                 if !display.is_empty() {
-                    // Only insert a separating blank line for new cells that are not
-                    // part of an ongoing stream. Streaming continuations should not
-                    // accrue extra blank lines between chunks.
+                    // 進行中のストリームの一部ではない新しいセルに対してのみ
+                    // 区切りの空行を挿入。ストリーミング継続はチャンク間に
+                    // 余分な空行を蓄積すべきではない。
                     if !cell.is_stream_continuation() {
                         if self.has_emitted_history_lines {
                             display.insert(0, Line::from(""));
@@ -1504,9 +1501,9 @@ impl App {
             }
             AppEvent::CodexOp(op) => self.chat_widget.submit_op(op),
             AppEvent::DiffResult(text) => {
-                // Clear the in-progress state in the bottom pane
+                // ボトムペインの進行中状態をクリア
                 self.chat_widget.on_diff_complete();
-                // Enter alternate screen using TUI helper and build pager lines
+                // TUIヘルパーを使用してオルトスクリーンに入り、ページャー行を構築
                 let _ = tui.enter_alt_screen();
                 let pager_lines: Vec<ratatui::text::Line<'static>> = if text.trim().is_empty() {
                     vec!["No changes detected.".italic().into()]
@@ -1705,10 +1702,10 @@ impl App {
                     return Ok(true);
                 }
 
-                // If sandbox policy becomes workspace-write or read-only, run the Windows world-writable scan.
+                // サンドボックスポリシーがworkspace-writeまたはread-onlyになった場合、Windowsのworld-writableスキャンを実行。
                 #[cfg(target_os = "windows")]
                 {
-                    // One-shot suppression if the user just confirmed continue.
+                    // ユーザーが続行を確認した直後の一度だけの抑制。
                     if self.skip_world_writable_scan_once {
                         self.skip_world_writable_scan_once = false;
                         return Ok(true);
@@ -1897,15 +1894,15 @@ impl App {
                 kind: KeyEventKind::Press,
                 ..
             } => {
-                // Enter alternate screen and set viewport to full size.
+                // オルトスクリーンに入り、ビューポートをフルサイズに設定。
                 let _ = tui.enter_alt_screen();
                 self.overlay = Some(Overlay::new_transcript(self.transcript_cells.clone()));
                 tui.frame_requester().schedule_frame();
             }
-            // Esc primes/advances backtracking only in normal (not working) mode
-            // with the composer focused and empty. In any other state, forward
-            // Esc so the active UI (e.g. status indicator, modals, popups)
-            // handles it.
+            // Escはコンポーザーがフォーカスされ空の状態で、通常（作業中でない）モードの
+            // 時のみバックトラッキングを準備/進行。その他の状態ではEscを転送し、
+            // アクティブなUI（例: ステータスインジケーター、モーダル、ポップアップ）が
+            // 処理するようにする。
             KeyEvent {
                 code: KeyCode::Esc,
                 kind: KeyEventKind::Press | KeyEventKind::Repeat,
@@ -1998,7 +1995,7 @@ impl App {
                 self.transcript_scroll = TranscriptScroll::ToBottom;
                 tui.frame_requester().schedule_frame();
             }
-            // Enter confirms backtrack when primed + count > 0. Otherwise pass to widget.
+            // Enterは準備済み + カウント > 0 の時にバックトラックを確認。それ以外はウィジェットに渡す。
             KeyEvent {
                 code: KeyCode::Enter,
                 kind: KeyEventKind::Press,
@@ -2007,23 +2004,23 @@ impl App {
                 && self.backtrack.nth_user_message != usize::MAX
                 && self.chat_widget.composer_is_empty() =>
             {
-                // Delegate to helper for clarity; preserves behavior.
+                // 明確さのためヘルパーに委譲；動作を保持。
                 self.confirm_backtrack_from_main();
             }
             KeyEvent {
                 kind: KeyEventKind::Press | KeyEventKind::Repeat,
                 ..
             } => {
-                // Any non-Esc key press should cancel a primed backtrack.
-                // This avoids stale "Esc-primed" state after the user starts typing
-                // (even if they later backspace to empty).
+                // Esc以外のキー押下は準備済みバックトラックをキャンセルすべき。
+                // これによりユーザーが入力を開始した後の古い「Esc準備済み」状態を回避
+                // （後でバックスペースで空にしても）。
                 if key_event.code != KeyCode::Esc && self.backtrack.primed {
                     self.reset_backtrack_state();
                 }
                 self.chat_widget.handle_key_event(key_event);
             }
             _ => {
-                // Ignore Release key events.
+                // Releaseキーイベントを無視。
             }
         };
     }
@@ -2045,7 +2042,7 @@ impl App {
                 Some(logs_base_dir.as_path()),
             );
             if result.is_err() {
-                // Scan failed: warn without examples.
+                // スキャン失敗: 例なしで警告。
                 tx.send(AppEvent::OpenWorldWritableWarningConfirmation {
                     preset: None,
                     sample_paths: Vec::new(),
@@ -2328,9 +2325,9 @@ mod tests {
             )) as Arc<dyn HistoryCell>
         };
 
-        // Simulate the transcript after trimming for a fork, replaying history, and
-        // appending the edited turn. The session header separates the retained history
-        // from the forked conversation's replayed turns.
+        // フォーク用のトリミング後、履歴の再生、編集されたターンの追加後の
+        // トランスクリプトをシミュレート。セッションヘッダーは保持された履歴と
+        // フォークされた会話の再生されたターンを分離。
         app.transcript_cells = vec![
             make_header(true),
             user_cell("first question"),
@@ -2372,7 +2369,7 @@ mod tests {
             height: 2,
         };
 
-        // Anchor selection to logical line 1, columns 2..4.
+        // 論理行1、列2..4に選択をアンカー。
         app.transcript_selection = TranscriptSelection {
             anchor: Some(TranscriptSelectionPoint {
                 line_index: 1,
@@ -2384,7 +2381,7 @@ mod tests {
             }),
         };
 
-        // First render: top of view is line 0, so line 1 maps to the second row.
+        // 最初のレンダリング: ビューの先頭が行0なので、行1は2行目にマップ。
         app.transcript_view_top = 0;
         let mut buf = Buffer::empty(area);
         for x in 2..area.width {
@@ -2394,14 +2391,14 @@ mod tests {
 
         app.apply_transcript_selection(area, &mut buf);
 
-        // No selection should be applied to the first row when the view is anchored at the top.
+        // ビューが先頭にアンカーされている時、最初の行には選択が適用されるべきではない。
         for x in 0..area.width {
             let cell = &buf[(x, 0)];
             assert!(cell.style().add_modifier.is_empty());
         }
 
-        // After scrolling down by one line, the same logical line should now be
-        // rendered on the first row, and the highlight should move with it.
+        // 1行下にスクロールした後、同じ論理行が最初の行にレンダリングされ、
+        // ハイライトもそれと共に移動すべき。
         app.transcript_view_top = 1;
         let mut buf_scrolled = Buffer::empty(area);
         for x in 2..area.width {
@@ -2411,8 +2408,7 @@ mod tests {
 
         app.apply_transcript_selection(area, &mut buf_scrolled);
 
-        // After scrolling, the selection should now be applied on the first row rather than the
-        // second.
+        // スクロール後、選択は2行目ではなく最初の行に適用されるべき。
         for x in 0..area.width {
             let cell = &buf_scrolled[(x, 1)];
             assert!(cell.style().add_modifier.is_empty());

@@ -1,47 +1,42 @@
-//! Transcript-relative multi-click selection helpers.
+//! トランスクリプト相対のマルチクリック選択ヘルパー。
 //!
-//! This module implements multi-click selection in terms of the **rendered
-//! transcript model** (wrapped transcript lines + content columns), not
-//! terminal buffer coordinates.
+//! このモジュールは**レンダリングされたトランスクリプトモデル**（折り返されたトランスクリプト行
+//! + コンテンツ列）に基づいてマルチクリック選択を実装する。ターミナルバッファ座標ではない。
 //!
-//! Terminal `(row, col)` coordinates are ephemeral: scrolling, resizing, and
-//! reflow (especially while streaming) change where a given piece of transcript
-//! content appears on screen. Transcript-relative selection coordinates are
-//! stable because they are anchored to the flattened, wrapped transcript line
-//! model.
+//! ターミナル `(row, col)` 座標は一時的: スクロール、リサイズ、リフロー（特にストリーミング中）により
+//! トランスクリプトコンテンツの特定部分が画面上のどこに表示されるかが変わる。
+//! トランスクリプト相対の選択座標はフラット化され折り返されたトランスクリプト行モデルに
+//! アンカーされているため安定している。
 //!
-//! Integration notes:
-//! - Mouse event → `TranscriptSelectionPoint` mapping is handled by `app.rs`.
-//! - This module:
-//!   - groups nearby clicks into a multi-click sequence
-//!   - expands the selection based on the current click count
-//!   - rebuilds the wrapped transcript lines from `HistoryCell::display_lines(width)`
-//!     so selection expansion matches on-screen wrapping.
-//! - In TUI2 we start transcript selection on drag. A single click stores an
-//!   anchor but is not an "active" selection (no head). Multi-click selection
-//!   (double/triple/quad+) *does* create an active selection immediately.
+//! 統合ノート:
+//! - マウスイベント → `TranscriptSelectionPoint` マッピングは `app.rs` で処理。
+//! - このモジュール:
+//!   - 近接するクリックをマルチクリックシーケンスにグループ化
+//!   - 現在のクリック数に基づいて選択を拡張
+//!   - `HistoryCell::display_lines(width)` から折り返されたトランスクリプト行を再構築し、
+//!     選択拡張が画面上の折り返しと一致するようにする。
+//! - TUI2ではドラッグでトランスクリプト選択を開始。シングルクリックはアンカーを保存するが
+//!   「アクティブ」な選択（headなし）ではない。マルチクリック選択（ダブル/トリプル/クアッド+）は
+//!   即座にアクティブな選択を*作成する*。
 //!
-//! Complexity / cost model:
-//! - single clicks are `O(1)` (just click tracking + caret placement)
-//! - multi-click expansion rebuilds the current wrapped transcript view
-//!   (`O(total rendered transcript text)`) so selection matches what is on screen
-//!   *right now* (including streaming/reflow).
+//! 計算量 / コストモデル:
+//! - シングルクリックは `O(1)`（クリック追跡 + キャレット配置のみ）
+//! - マルチクリック拡張は現在の折り返されたトランスクリプトビューを再構築
+//!   (`O(レンダリングされたトランスクリプトテキスト総量)`) し、選択が画面に表示されている
+//!   もの*今*と一致するようにする（ストリーミング/リフローを含む）。
 //!
-//! Coordinates:
-//! - `TranscriptSelectionPoint::line_index` is an index into the flattened,
-//!   wrapped transcript lines ("visual lines").
-//! - `TranscriptSelectionPoint::column` is a 0-based *content* column offset,
-//!   measured from immediately after the transcript gutter
-//!   (`TRANSCRIPT_GUTTER_COLS`).
-//! - Selection endpoints are inclusive (they represent a closed interval of
-//!   selected cells).
+//! 座標:
+//! - `TranscriptSelectionPoint::line_index` はフラット化され折り返されたトランスクリプト行
+//!   （「表示行」）へのインデックス。
+//! - `TranscriptSelectionPoint::column` は0ベースの*コンテンツ*列オフセットで、
+//!   トランスクリプトガター (`TRANSCRIPT_GUTTER_COLS`) の直後から測定。
+//! - 選択のエンドポイントは包含的（選択されたセルの閉区間を表す）。
 //!
-//! Selection expansion is UI-oriented:
-//! - "word" selection uses display width (`unicode_width`) and a lightweight
-//!   character class heuristic.
-//! - "paragraph" selection is based on contiguous non-empty wrapped lines.
-//! - "cell" selection selects all wrapped lines that belong to a single history
-//!   cell (the unit returned by `HistoryCell::display_lines`).
+//! 選択拡張はUI指向:
+//! - 「単語」選択は表示幅 (`unicode_width`) と軽量な文字クラスヒューリスティックを使用。
+//! - 「段落」選択は連続する非空の折り返し行に基づく。
+//! - 「セル」選択は単一の履歴セルに属するすべての折り返し行を選択
+//!   (`HistoryCell::display_lines` が返す単位)。
 
 use crate::history_cell::HistoryCell;
 use crate::transcript_selection::TRANSCRIPT_GUTTER_COLS;
@@ -55,40 +50,36 @@ use std::time::Duration;
 use std::time::Instant;
 use unicode_width::UnicodeWidthChar;
 
-/// Stateful multi-click selection handler for the transcript viewport.
+/// トランスクリプトビューポート用のステートフルなマルチクリック選択ハンドラー。
 ///
-/// This holds the click history required to infer multi-click sequences across
-/// mouse events. The actual selection expansion is computed from the current
-/// transcript content so it stays aligned with on-screen wrapping.
+/// マウスイベント間でマルチクリックシーケンスを推論するために必要なクリック履歴を保持。
+/// 実際の選択拡張は現在のトランスクリプトコンテンツから計算され、画面上の折り返しと
+/// 整合性を保つ。
 #[derive(Debug, Default)]
 pub(crate) struct TranscriptMultiClick {
-    /// Tracks recent clicks so we can infer a multi-click sequence.
+    /// 最近のクリックを追跡し、マルチクリックシーケンスを推論できるようにする。
     ///
-    /// This is intentionally kept separate from the selection itself: selection
-    /// endpoints are owned by `TranscriptSelection`, while multi-click behavior
-    /// is a transient input gesture state.
+    /// これは意図的に選択自体から分離されている: 選択のエンドポイントは
+    /// `TranscriptSelection` が所有し、マルチクリックの動作は一時的な入力ジェスチャー状態。
     tracker: ClickTracker,
 }
 
 impl TranscriptMultiClick {
-    /// Handle a left-button mouse down within the transcript viewport.
+    /// トランスクリプトビューポート内での左ボタンマウスダウンを処理。
     ///
-    /// This is intended to be called from `App`'s mouse handler.
+    /// `App` のマウスハンドラーから呼び出されることを想定。
     ///
-    /// Behavior:
-    /// - Always updates the underlying selection anchor (delegates to
-    ///   [`crate::transcript_selection::on_mouse_down`]) so dragging can extend
-    ///   from this point.
-    /// - Tracks the click as part of a potential multi-click sequence.
-    /// - On multi-click (double/triple/quad+), replaces the selection with an
-    ///   active expanded selection (word/line/paragraph).
+    /// 動作:
+    /// - 常に基礎となる選択アンカーを更新（[`crate::transcript_selection::on_mouse_down`] に委譲）
+    ///   し、ドラッグがこのポイントから拡張できるようにする。
+    /// - クリックを潜在的なマルチクリックシーケンスの一部として追跡。
+    /// - マルチクリック（ダブル/トリプル/クアッド+）時は、選択を拡張されたアクティブな
+    ///   選択（単語/行/段落）で置き換える。
     ///
-    /// `width` must match the transcript viewport width used for rendering so
-    /// wrapping (and therefore word/paragraph boundaries) align with what the
-    /// user sees.
+    /// `width` はレンダリングに使用されるトランスクリプトビューポート幅と一致する必要があり、
+    /// 折り返し（したがって単語/段落の境界）がユーザーに見えるものと揃うようにする。
     ///
-    /// Returns whether the selection changed (useful to decide whether to
-    /// request a redraw).
+    /// 選択が変更されたかどうかを返す（再描画を要求するかどうかの判断に有用）。
     pub(crate) fn on_mouse_down(
         &mut self,
         selection: &mut TranscriptSelection,
@@ -99,14 +90,13 @@ impl TranscriptMultiClick {
         self.on_mouse_down_at(selection, cells, width, point, Instant::now())
     }
 
-    /// Notify the handler that the user is drag-selecting.
+    /// ユーザーがドラッグ選択中であることをハンドラーに通知。
     ///
-    /// Drag-selection should not be interpreted as a continuation of a
-    /// multi-click sequence, so we reset click history once the cursor moves
-    /// away from the anchor point.
+    /// ドラッグ選択はマルチクリックシーケンスの継続として解釈されるべきではないため、
+    /// カーソルがアンカーポイントから離れたらクリック履歴をリセット。
     ///
-    /// `point` is expected to be clamped to transcript content coordinates. If
-    /// `point` is `None`, this is a no-op.
+    /// `point` はトランスクリプトコンテンツ座標にクランプされていることを想定。
+    /// `point` が `None` の場合、これはno-op。
     pub(crate) fn on_mouse_drag(
         &mut self,
         selection: &TranscriptSelection,
@@ -116,11 +106,11 @@ impl TranscriptMultiClick {
             return;
         };
 
-        // Some terminals emit `Drag` events for very small cursor motion while
-        // the button is held down (e.g. trackpad “jitter” during a click).
-        // Resetting the click sequence on *any* drag makes double/quad clicks
-        // hard to trigger, so we only treat it as a drag gesture once the
-        // cursor has meaningfully moved away from the anchor.
+        // 一部のターミナルはボタンが押されている間、非常に小さなカーソル動作に対して
+        // `Drag` イベントを発行する（例: クリック中のトラックパッドの「ジッター」）。
+        // *任意の*ドラッグでクリックシーケンスをリセットするとダブル/クアッドクリックが
+        // トリガーしにくくなるため、カーソルがアンカーから意味のある距離離れた場合のみ
+        // ドラッグジェスチャーとして扱う。
         let moved_to_other_wrapped_line = point.line_index != anchor.line_index;
         let moved_far_enough_horizontally =
             point.column.abs_diff(anchor.column) > ClickTracker::MAX_COLUMN_DISTANCE;
@@ -129,22 +119,20 @@ impl TranscriptMultiClick {
         }
     }
 
-    /// Testable implementation of [`Self::on_mouse_down`].
+    /// [`Self::on_mouse_down`] のテスト可能な実装。
     ///
-    /// Taking `now` as an input makes click grouping deterministic in tests.
+    /// `now` を入力として受け取ることで、テストでクリックグループ化を決定論的にする。
     ///
-    /// High-level flow (kept here so callers don’t have to mentally simulate the
-    /// selection state machine):
-    /// 1. Update the underlying selection state using
-    ///    [`crate::transcript_selection::on_mouse_down`]. In TUI2 this records an
-    ///    anchor and clears any head so a single click does not leave a visible
-    ///    selection.
-    /// 2. If the click is outside the transcript content (`point == None`),
-    ///    reset the click tracker and return.
-    /// 3. Register the click with the tracker to infer the click count.
-    /// 4. For multi-click (`>= 2`), compute an expanded selection from the
-    ///    *current* wrapped transcript view and overwrite the selection with an
-    ///    active selection (`anchor` + `head` set).
+    /// 高レベルフロー（呼び出し元が選択ステートマシンを頭でシミュレートしなくて済むよう
+    /// ここに記載）:
+    /// 1. [`crate::transcript_selection::on_mouse_down`] を使用して基礎となる選択状態を更新。
+    ///    TUI2ではアンカーを記録し、headをクリアして、シングルクリックが可視選択を
+    ///    残さないようにする。
+    /// 2. クリックがトランスクリプトコンテンツ外（`point == None`）の場合、
+    ///    クリックトラッカーをリセットして戻る。
+    /// 3. クリックをトラッカーに登録してクリック数を推論。
+    /// 4. マルチクリック（`>= 2`）の場合、*現在の*折り返されたトランスクリプトビューから
+    ///    拡張された選択を計算し、アクティブな選択（`anchor` + `head` 設定）で上書き。
     fn on_mouse_down_at(
         &mut self,
         selection: &mut TranscriptSelection,
@@ -171,46 +159,45 @@ impl TranscriptMultiClick {
     }
 }
 
-/// Tracks recent clicks so we can infer multi-click counts.
+/// 最近のクリックを追跡し、マルチクリック数を推論できるようにする。
 #[derive(Debug, Default)]
 struct ClickTracker {
-    /// The last click observed (used to group nearby clicks into a sequence).
+    /// 最後に観測されたクリック（近接するクリックをシーケンスにグループ化するために使用）。
     last_click: Option<Click>,
 }
 
-/// A single click event used for multi-click grouping.
+/// マルチクリックグループ化に使用される単一のクリックイベント。
 #[derive(Debug, Clone, Copy)]
 struct Click {
-    /// Location of the click in transcript coordinates.
+    /// トランスクリプト座標でのクリック位置。
     point: TranscriptSelectionPoint,
-    /// Click count for the current sequence.
+    /// 現在のシーケンスのクリック数。
     click_count: u8,
-    /// Time the click occurred (used to bound multi-click grouping).
+    /// クリックが発生した時刻（マルチクリックグループ化の境界に使用）。
     at: Instant,
 }
 
 impl ClickTracker {
-    /// Maximum time gap between clicks to be considered part of a sequence.
+    /// シーケンスの一部と見なされるクリック間の最大時間間隔。
     const MAX_DELAY: Duration = Duration::from_millis(650);
-    /// Maximum horizontal motion (in transcript *content* columns) to be
-    /// considered "the same click target" for multi-click grouping.
+    /// マルチクリックグループ化で「同じクリックターゲット」と見なされる
+    /// 最大水平移動距離（トランスクリプト*コンテンツ*列単位）。
     const MAX_COLUMN_DISTANCE: u16 = 4;
 
-    /// Reset click history so the next click begins a new sequence.
+    /// クリック履歴をリセットし、次のクリックが新しいシーケンスを開始するようにする。
     fn reset(&mut self) {
         self.last_click = None;
     }
 
-    /// Record a click and return the inferred click count for this sequence.
+    /// クリックを記録し、このシーケンスの推論されたクリック数を返す。
     ///
-    /// Clicks are grouped when:
-    /// - they occur close in time (`MAX_DELAY`), and
-    /// - they target the same transcript wrapped line, and
-    /// - they occur at nearly the same content column (`MAX_COLUMN_DISTANCE`),
-    ///   with increasing tolerance for later clicks in the sequence
+    /// クリックがグループ化される条件:
+    /// - 時間的に近い（`MAX_DELAY`）、かつ
+    /// - 同じトランスクリプト折り返し行をターゲット、かつ
+    /// - ほぼ同じコンテンツ列で発生（`MAX_COLUMN_DISTANCE`）、
+    ///   シーケンス後半のクリックほど許容度が増加
     ///
-    /// The returned count saturates at `u8::MAX` (we only care about the
-    /// `>= 4` bucket).
+    /// 返されるカウントは `u8::MAX` で飽和（`>= 4` のバケットのみを気にする）。
     fn register_click(&mut self, point: TranscriptSelectionPoint, now: Instant) -> u8 {
         let mut click_count = 1u8;
         if let Some(prev) = self.last_click
@@ -231,12 +218,11 @@ impl ClickTracker {
     }
 }
 
-/// Column-distance tolerance for continuing an existing click sequence.
+/// 既存のクリックシーケンスを継続するための列距離許容値。
 ///
-/// We intentionally loosen grouping after the selection has expanded: once the
-/// user is on the “whole line” or “paragraph” step, requiring a near-identical
-/// column makes quad-clicks hard to trigger because the user can naturally
-/// click elsewhere on the already-highlighted line.
+/// 選択が拡張された後は意図的にグループ化を緩和: ユーザーが「行全体」または「段落」
+/// ステップにいるとき、ほぼ同一の列を要求するとクアッドクリックがトリガーしにくくなる。
+/// ユーザーは既にハイライトされた行の別の場所を自然にクリックできるため。
 fn max_column_distance(prev_click_count: u8) -> u16 {
     match prev_click_count {
         0 | 1 => ClickTracker::MAX_COLUMN_DISTANCE,
@@ -245,35 +231,32 @@ fn max_column_distance(prev_click_count: u8) -> u16 {
     }
 }
 
-/// Expand a click (plus inferred `click_count`) into a transcript selection.
+/// クリック（および推論された `click_count`）をトランスクリプト選択に拡張。
 ///
-/// This is the core of multi-click behavior. For expanded selections it
-/// rebuilds the current wrapped transcript view from history cells so selection
-/// boundaries line up with the rendered transcript model (not raw source
-/// strings, and not terminal buffer coordinates).
+/// これはマルチクリック動作の核心。拡張された選択では、選択境界がレンダリングされた
+/// トランスクリプトモデル（生のソース文字列でもターミナルバッファ座標でもない）と
+/// 揃うよう、履歴セルから現在の折り返されたトランスクリプトビューを再構築。
 ///
-/// `TranscriptSelectionPoint::column` is interpreted in content coordinates:
-/// column 0 is the first column immediately after the transcript gutter
-/// (`TRANSCRIPT_GUTTER_COLS`). The returned selection columns are clamped to
-/// the content width for the given `width`.
+/// `TranscriptSelectionPoint::column` はコンテンツ座標で解釈:
+/// 列0はトランスクリプトガター (`TRANSCRIPT_GUTTER_COLS`) の直後の最初の列。
+/// 返される選択列は指定された `width` のコンテンツ幅にクランプ。
 ///
-/// Gesture mapping:
-/// - double click selects a “word-ish” run on the clicked wrapped line
-/// - triple click selects the entire wrapped line
-/// - quad+ click selects the containing paragraph (contiguous non-empty wrapped
-///   lines, with empty/spacer lines treated as paragraph breaks)
-/// - quint+ click selects the entire history cell
+/// ジェスチャーマッピング:
+/// - ダブルクリックはクリックされた折り返し行の「単語っぽい」連続を選択
+/// - トリプルクリックは折り返し行全体を選択
+/// - クアッド+クリックは含まれる段落を選択（連続する非空の折り返し行、
+///   空/スペーサー行は段落区切りとして扱う）
+/// - クイント+クリックは履歴セル全体を選択
 ///
-/// Returned selections are always “active” (both `anchor` and `head` set). This
-/// intentionally differs from normal single-click behavior in TUI2 (which only
-/// stores an anchor until a drag makes the selection active).
+/// 返される選択は常に「アクティブ」（`anchor` と `head` の両方が設定）。これは
+/// TUI2の通常のシングルクリック動作（ドラッグが選択をアクティブにするまでアンカーのみ保存）
+/// と意図的に異なる。
 ///
-/// Defensiveness:
-/// - if the transcript is empty, or wrapping yields no lines, this falls back
-///   to a caret-like selection at `point` so multi-click never produces “no
-///   selection”
-/// - if `point` refers past the end of the wrapped line list, it is clamped to
-///   the last wrapped line so behavior stays stable during scroll/resize/reflow
+/// 防御性:
+/// - トランスクリプトが空、または折り返しが行を生成しない場合、マルチクリックが
+///   「選択なし」を生成しないよう、`point` でのキャレットのような選択にフォールバック
+/// - `point` が折り返し行リストの終端を超えて参照する場合、スクロール/リサイズ/リフロー中も
+///   動作が安定するよう最後の折り返し行にクランプ
 fn selection_for_click(
     cells: &[Arc<dyn HistoryCell>],
     width: u16,
@@ -287,16 +270,14 @@ fn selection_for_click(
         };
     }
 
-    // `width` is the total viewport width, including the gutter. Selection
-    // columns are content-relative, so compute the maximum selectable *content*
-    // column.
+    // `width` はガターを含む総ビューポート幅。選択列はコンテンツ相対なので、
+    // 選択可能な最大*コンテンツ*列を計算。
     let max_content_col = width
         .saturating_sub(1)
         .saturating_sub(TRANSCRIPT_GUTTER_COLS);
 
-    // Rebuild the same logical line stream the transcript renders from. This
-    // keeps expansion boundaries aligned with current streaming output and the
-    // current wrap width.
+    // トランスクリプトがレンダリングする同じ論理行ストリームを再構築。これにより
+    // 拡張境界が現在のストリーミング出力と現在の折り返し幅と揃う。
     let (lines, line_cell_index) = build_transcript_lines_with_cell_index(cells, width);
     if lines.is_empty() {
         return TranscriptSelection {
@@ -305,8 +286,8 @@ fn selection_for_click(
         };
     }
 
-    // Expand based on the wrapped *visual* lines so triple/quad/quint-click
-    // selection respects the current wrap width.
+    // 折り返された*視覚的な*行に基づいて拡張し、トリプル/クアッド/クイントクリック
+    // 選択が現在の折り返し幅を尊重するようにする。
     let (wrapped, wrapped_cell_index) = word_wrap_lines_with_cell_index(
         &lines,
         &line_cell_index,
@@ -319,9 +300,9 @@ fn selection_for_click(
         };
     }
 
-    // Clamp both the target line and column into the current wrapped view. This
-    // matters during live streaming, where the transcript can grow between the
-    // time the UI clamps the click and the time we compute expansion.
+    // ターゲット行と列の両方を現在の折り返しビューにクランプ。これは
+    // ライブストリーミング中に重要: UIがクリックをクランプしてから拡張を計算するまでの間に
+    // トランスクリプトが成長する可能性があるため。
     let line_index = point.line_index.min(wrapped.len().saturating_sub(1));
     let point = TranscriptSelectionPoint::new(line_index, point.column.min(max_content_col));
 
@@ -377,11 +358,10 @@ fn selection_for_click(
     }
 }
 
-/// Flatten transcript history cells into the same line stream used by the UI.
+/// トランスクリプト履歴セルをUIが使用するのと同じ行ストリームにフラット化。
 ///
-/// This mirrors `App::build_transcript_lines` semantics: insert a blank spacer
-/// line between non-continuation cells so word/paragraph boundaries match what
-/// the user sees.
+/// `App::build_transcript_lines` のセマンティクスをミラー: 非継続セル間に空白の
+/// スペーサー行を挿入し、単語/段落境界がユーザーに見えるものと一致するようにする。
 #[cfg(test)]
 fn build_transcript_lines(cells: &[Arc<dyn HistoryCell>], width: u16) -> Vec<Line<'static>> {
     let mut lines: Vec<Line<'static>> = Vec::new();
@@ -395,9 +375,8 @@ fn build_transcript_lines(cells: &[Arc<dyn HistoryCell>], width: u16) -> Vec<Lin
 
         if !cell.is_stream_continuation() {
             if has_emitted_lines {
-                // `App` inserts a spacer between distinct (non-continuation)
-                // history cells; preserve that here so paragraph detection
-                // matches what users see.
+                // `App` は異なる（非継続）履歴セル間にスペーサーを挿入する。
+                // ここでもそれを保持し、段落検出がユーザーに見えるものと一致するようにする。
                 lines.push(Line::from(""));
             } else {
                 has_emitted_lines = true;
@@ -410,11 +389,11 @@ fn build_transcript_lines(cells: &[Arc<dyn HistoryCell>], width: u16) -> Vec<Lin
     lines
 }
 
-/// Like [`build_transcript_lines`], but also returns a per-line mapping to the
-/// originating history cell index.
+/// [`build_transcript_lines`] と同様だが、各行から元の履歴セルインデックスへの
+/// マッピングも返す。
 ///
-/// This mapping lets us implement "select the whole history cell" in terms of
-/// wrapped visual line indices.
+/// このマッピングにより、折り返された視覚的な行インデックスを使用して
+/// 「履歴セル全体を選択」を実装できる。
 fn build_transcript_lines_with_cell_index(
     cells: &[Arc<dyn HistoryCell>],
     width: u16,
@@ -446,10 +425,10 @@ fn build_transcript_lines_with_cell_index(
     (lines, line_cell_index)
 }
 
-/// Wrap lines and carry forward a per-line mapping to history cell index.
+/// 行を折り返し、各行から履歴セルインデックスへのマッピングを引き継ぐ。
 ///
-/// This mirrors [`word_wrap_lines_borrowed`] behavior so selection expansion
-/// uses the same wrapped line model as rendering.
+/// [`word_wrap_lines_borrowed`] の動作をミラーし、選択拡張がレンダリングと
+/// 同じ折り返し行モデルを使用するようにする。
 fn word_wrap_lines_with_cell_index<'a, O>(
     lines: &'a [Line<'a>],
     line_cell_index: &[Option<usize>],
@@ -484,12 +463,10 @@ where
     (out, out_cell_index)
 }
 
-/// Expand to the contiguous range of wrapped lines that belong to a single
-/// history cell.
+/// 単一の履歴セルに属する連続した折り返し行の範囲に拡張。
 ///
-/// `line_index` is in wrapped line coordinates. If the line at `line_index` is
-/// a spacer (no cell index), we select the nearest preceding cell, falling back
-/// to the next cell below.
+/// `line_index` は折り返し行座標。`line_index` の行がスペーサー（セルインデックスなし）
+/// の場合、最も近い前のセルを選択し、フォールバックとして次のセルを選択。
 fn cell_bounds_in_wrapped_lines(
     wrapped_cell_index: &[Option<usize>],
     line_index: usize,
@@ -530,22 +507,22 @@ fn cell_bounds_in_wrapped_lines(
     Some((start, end))
 }
 
-/// Coarse character classes used for "word-ish" selection.
+/// 「単語っぽい」選択に使用される大まかな文字クラス。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WordCharClass {
-    /// Any whitespace (select as a contiguous run).
+    /// 任意の空白（連続した実行として選択）。
     Whitespace,
-    /// Alphanumeric plus token punctuation (paths/idents/URLs).
+    /// 英数字 + トークン句読点（パス/識別子/URL）。
     Token,
-    /// Everything else.
+    /// その他すべて。
     Other,
 }
 
-/// Classify characters for UI-oriented "word-ish" selection.
+/// UI指向の「単語っぽい」選択のために文字を分類。
 ///
-/// This intentionally does not attempt full Unicode word boundary semantics.
-/// It is tuned for terminal transcript interactions, where "word" often means
-/// identifiers, paths, URLs, and punctuation-adjacent tokens.
+/// 意図的に完全なUnicode単語境界セマンティクスを試みない。
+/// ターミナルトランスクリプトのインタラクション向けにチューニングされており、
+/// 「単語」は多くの場合、識別子、パス、URL、句読点隣接トークンを意味する。
 fn word_char_class(ch: char) -> WordCharClass {
     if ch.is_whitespace() {
         return WordCharClass::Whitespace;
@@ -577,19 +554,19 @@ fn word_char_class(ch: char) -> WordCharClass {
     }
 }
 
-/// Concatenate a styled `Line` into its plain text representation.
+/// スタイル付き `Line` をプレーンテキスト表現に連結。
 ///
-/// Multi-click selection operates on the rendered text content (what the user
-/// sees), independent of styling.
+/// マルチクリック選択はレンダリングされたテキストコンテンツ（ユーザーに見えるもの）で
+/// 動作し、スタイリングとは独立。
 fn flatten_line_text(line: &Line<'_>) -> String {
     line.spans.iter().map(|s| s.content.as_ref()).collect()
 }
 
-/// Find the UTF-8 byte index that corresponds to `prefix_cols` display columns.
+/// `prefix_cols` 表示列に対応するUTF-8バイトインデックスを検索。
 ///
-/// This is used to exclude the transcript gutter/prefix when interpreting
-/// clicks and paragraph breaks. Column math uses display width, not byte
-/// offsets, to match terminal layout.
+/// クリックや段落区切りを解釈する際にトランスクリプトガター/プレフィックスを
+/// 除外するために使用。列計算はターミナルレイアウトと一致させるため、
+/// バイトオフセットではなく表示幅を使用。
 fn byte_index_after_prefix_cols(text: &str, prefix_cols: u16) -> usize {
     let mut col = 0u16;
     for (idx, ch) in text.char_indices() {
@@ -601,31 +578,28 @@ fn byte_index_after_prefix_cols(text: &str, prefix_cols: u16) -> usize {
     text.len()
 }
 
-/// Compute the (inclusive) content column bounds of the "word" under a click.
+/// クリック下の「単語」の（包含的な）コンテンツ列境界を計算。
 ///
-/// This is defined in terms of the *rendered* line:
-/// - `line` is a visual wrapped transcript line (including the gutter/prefix).
-/// - `prefix_cols` is the number of display columns to ignore on the left
-///   (the transcript gutter).
-/// - `click_col` is a 0-based content column, measured from the first column
-///   after the gutter.
+/// *レンダリングされた*行の観点で定義:
+/// - `line` は視覚的な折り返しトランスクリプト行（ガター/プレフィックスを含む）。
+/// - `prefix_cols` は左側で無視する表示列数（トランスクリプトガター）。
+/// - `click_col` は0ベースのコンテンツ列で、ガターの直後の最初の列から測定。
 ///
-/// The returned `(start, end)` is an inclusive selection range in content
-/// columns (`0..=max_content_col`), suitable for populating
-/// [`TranscriptSelectionPoint::column`].
+/// 返される `(start, end)` はコンテンツ列での包含的な選択範囲 (`0..=max_content_col`)
+/// で、[`TranscriptSelectionPoint::column`] の値として適している。
 fn word_bounds_in_wrapped_line(
     line: &Line<'_>,
     prefix_cols: u16,
     click_col: u16,
 ) -> Option<(u16, u16)> {
-    // We compute word bounds by flattening to plain text and mapping each
-    // displayed glyph to a column range (by display width). This mirrors what
-    // the user sees, even if the underlying spans have multiple styles.
+    // プレーンテキストにフラット化し、表示される各グリフを（表示幅による）列範囲に
+    // マッピングすることで単語境界を計算。これは基礎となるスパンに複数のスタイルが
+    // あっても、ユーザーに見えるものをミラーする。
     //
-    // Notes / limitations:
-    // - This operates at the `char` level, not grapheme clusters. For most
-    //   transcript content (ASCII-ish tokens/paths/URLs) that’s sufficient.
-    // - Zero-width chars are skipped; they don’t occupy a terminal cell.
+    // 注意/制限:
+    // - 書記素クラスタではなく `char` レベルで動作。ほとんどのトランスクリプト
+    //   コンテンツ（ASCIIっぽいトークン/パス/URL）にはこれで十分。
+    // - ゼロ幅文字はスキップ。ターミナルセルを占有しない。
     let full = flatten_line_text(line);
     let prefix_byte = byte_index_after_prefix_cols(&full, prefix_cols);
     let content = &full[prefix_byte..];
@@ -674,16 +648,15 @@ fn word_bounds_in_wrapped_line(
     Some((start_col, end_col))
 }
 
-/// Compute the (inclusive) wrapped line index bounds of the paragraph
-/// surrounding `line_index`.
+/// `line_index` を囲む段落の（包含的な）折り返し行インデックス境界を計算。
 ///
-/// Paragraphs are defined on *wrapped visual lines* (not underlying history
-/// cells): a paragraph is any contiguous run of non-empty wrapped lines, and
-/// empty lines (after trimming the transcript gutter/prefix) break paragraphs.
+/// 段落は*折り返された視覚的な行*（基礎となる履歴セルではない）で定義:
+/// 段落は連続する非空の折り返し行であり、空の行（トランスクリプトガター/プレフィックスを
+/// トリミング後）が段落を区切る。
 ///
-/// When `line_index` points at a break line, this selects the nearest preceding
-/// non-break line so a quad-click on the spacer line between history cells
-/// selects the paragraph above (matching common terminal UX expectations).
+/// `line_index` が区切り行を指している場合、最も近い前の非区切り行を選択し、
+/// 履歴セル間のスペーサー行でのクアッドクリックが上の段落を選択するようにする
+/// （一般的なターミナルUXの期待と一致）。
 fn paragraph_bounds_in_wrapped_lines(
     lines: &[Line<'_>],
     prefix_cols: u16,
@@ -693,8 +666,8 @@ fn paragraph_bounds_in_wrapped_lines(
         return None;
     }
 
-    // Paragraph breaks are determined after skipping the transcript gutter so a
-    // line that only contains the gutter prefix still counts as “empty”.
+    // 段落区切りはトランスクリプトガターをスキップした後に判定されるため、
+    // ガタープレフィックスのみを含む行も「空」としてカウント。
     let is_break = |idx: usize| -> bool {
         let full = flatten_line_text(&lines[idx]);
         let prefix_byte = byte_index_after_prefix_cols(&full, prefix_cols);
@@ -703,9 +676,8 @@ fn paragraph_bounds_in_wrapped_lines(
 
     let mut target = line_index.min(lines.len().saturating_sub(1));
     if is_break(target) {
-        // Prefer the paragraph above for spacer lines inserted between history
-        // cells. If there is no paragraph above, fall back to the next
-        // paragraph below.
+        // 履歴セル間に挿入されたスペーサー行については上の段落を優先。
+        // 上に段落がない場合、下の次の段落にフォールバック。
         target = (0..target)
             .rev()
             .find(|idx| !is_break(*idx))
@@ -856,8 +828,8 @@ mod tests {
             Some((1, 0, max_content_col))
         );
 
-        // The final click can land elsewhere on the highlighted line; we still
-        // want to treat it as continuing the multi-click sequence.
+        // 最後のクリックはハイライトされた行の他の場所に着地できる。
+        // それでもマルチクリックシーケンスの継続として扱いたい。
         multi.on_mouse_down_at(
             &mut selection,
             &cells,
@@ -1069,7 +1041,7 @@ mod tests {
         let t0 = Instant::now();
         let mut selection = TranscriptSelection::default();
 
-        // Index 1 is the spacer line inserted between the two non-continuation cells.
+        // インデックス1は2つの非継続セル間に挿入されたスペーサー行。
         let point = TranscriptSelectionPoint::new(1, 0);
         multi.on_mouse_down_at(&mut selection, &cells, width, Some(point), t0);
         multi.on_mouse_down_at(
@@ -1190,7 +1162,7 @@ mod tests {
         let t0 = Instant::now();
         let mut selection = TranscriptSelection::default();
 
-        // Index 1 is the spacer line inserted between the two non-continuation cells.
+        // インデックス1は2つの非継続セル間に挿入されたスペーサー行。
         let point = TranscriptSelectionPoint::new(1, 0);
         for (idx, dt) in [0u64, 10, 20, 30, 40].into_iter().enumerate() {
             multi.on_mouse_down_at(

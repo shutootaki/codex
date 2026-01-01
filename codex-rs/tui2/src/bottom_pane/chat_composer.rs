@@ -66,11 +66,10 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::time::Instant;
 
-/// If the pasted content exceeds this number of characters, replace it with a
-/// placeholder in the UI.
+/// ペーストされたコンテンツがこの文字数を超えた場合、UIでプレースホルダーに置き換える。
 const LARGE_PASTE_CHAR_THRESHOLD: usize = 1000;
 
-/// Result returned when the user interacts with the text area.
+/// ユーザーがテキストエリアと対話したときに返される結果。
 #[derive(Debug, PartialEq)]
 pub enum InputResult {
     Submitted(String),
@@ -111,9 +110,9 @@ pub(crate) struct ChatComposer {
     attached_images: Vec<AttachedImage>,
     placeholder_text: String,
     is_task_running: bool,
-    // Non-bracketed paste burst tracker.
+    // 非ブラケットペーストバースト追跡。
     paste_burst: PasteBurst,
-    // When true, disables paste-burst logic and inserts characters immediately.
+    // trueの場合、ペーストバーストロジックを無効化し、文字を即座に挿入。
     disable_paste_burst: bool,
     custom_prompts: Vec<CustomPrompt>,
     footer_mode: FooterMode,
@@ -128,7 +127,7 @@ pub(crate) struct ChatComposer {
     dismissed_skill_popup_token: Option<String>,
 }
 
-/// Popup state – at most one can be visible at any time.
+/// ポップアップ状態 – 常に最大1つのみ表示可能。
 enum ActivePopup {
     None,
     Command(CommandPopup),
@@ -179,7 +178,7 @@ impl ChatComposer {
             skills: None,
             dismissed_skill_popup_token: None,
         };
-        // Apply configuration via the setter to keep side-effects centralized.
+        // 副作用を集中管理するためセッターで設定を適用。
         this.set_disable_paste_burst(disable_paste_burst);
         this
     }
@@ -219,20 +218,20 @@ impl ChatComposer {
         }
     }
 
-    /// Returns true if the composer currently contains no user input.
+    /// コンポーザーが現在ユーザー入力を含まない場合にtrueを返す。
     pub(crate) fn is_empty(&self) -> bool {
         self.textarea.is_empty()
     }
 
-    /// Record the history metadata advertised by `SessionConfiguredEvent` so
-    /// that the composer can navigate cross-session history.
+    /// `SessionConfiguredEvent` でアドバタイズされた履歴メタデータを記録し、
+    /// コンポーザーがクロスセッション履歴をナビゲートできるようにする。
     pub(crate) fn set_history_metadata(&mut self, log_id: u64, entry_count: usize) {
         self.history.set_metadata(log_id, entry_count);
     }
 
-    /// Integrate an asynchronous response to an on-demand history lookup. If
-    /// the entry is present and the offset matches the current cursor we
-    /// immediately populate the textarea.
+    /// オンデマンド履歴ルックアップへの非同期レスポンスを統合。
+    /// エントリが存在しオフセットが現在のカーソルと一致する場合、
+    /// 即座にテキストエリアにポピュレート。
     pub(crate) fn on_history_entry_response(
         &mut self,
         log_id: u64,
@@ -257,7 +256,7 @@ impl ChatComposer {
         } else {
             self.textarea.insert_str(&pasted);
         }
-        // Explicit paste events should not trigger Enter suppression.
+        // 明示的なペーストイベントはEnter抑制をトリガーすべきでない。
         self.paste_burst.clear_after_explicit_paste();
         self.sync_popups();
         true
@@ -268,8 +267,8 @@ impl ChatComposer {
             return false;
         };
 
-        // normalize_pasted_path already handles Windows → WSL path conversion,
-        // so we can directly try to read the image dimensions.
+        // normalize_pasted_pathは既にWindows → WSLパス変換を処理しているため、
+        // 画像サイズを直接読み取ることができる。
         match image::image_dimensions(&path_buf) {
             Ok((w, h)) => {
                 tracing::info!("OK: {pasted}");
@@ -292,15 +291,15 @@ impl ChatComposer {
         }
     }
 
-    /// Override the footer hint items displayed beneath the composer. Passing
-    /// `None` restores the default shortcut footer.
+    /// コンポーザーの下に表示されるフッターヒントアイテムをオーバーライド。
+    /// `None` を渡すとデフォルトのショートカットフッターを復元。
     pub(crate) fn set_footer_hint_override(&mut self, items: Option<Vec<(String, String)>>) {
         self.footer_hint_override = items;
     }
 
-    /// Replace the entire composer content with `text` and reset cursor.
+    /// コンポーザーのコンテンツ全体を `text` に置き換えてカーソルをリセット。
     pub(crate) fn set_text_content(&mut self, text: String) {
-        // Clear any existing content, placeholders, and attachments first.
+        // 最初に既存のコンテンツ、プレースホルダー、添付をクリア。
         self.textarea.set_text("");
         self.pending_pastes.clear();
         self.attached_images.clear();
@@ -320,20 +319,20 @@ impl ChatComposer {
         Some(previous)
     }
 
-    /// Get the current composer text.
+    /// 現在のコンポーザーテキストを取得。
     pub(crate) fn current_text(&self) -> String {
         self.textarea.text().to_string()
     }
 
-    /// Attempt to start a burst by retro-capturing recent chars before the cursor.
+    /// カーソル前の最近の文字を遡ってキャプチャしてバーストの開始を試みる。
     pub fn attach_image(&mut self, path: PathBuf, width: u32, height: u32, _format_label: &str) {
         let file_label = path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| "image".to_string());
         let placeholder = format!("[{file_label} {width}x{height}]");
-        // Insert as an element to match large paste placeholder behavior:
-        // styled distinctly and treated atomically for cursor/mutations.
+        // 大きなペーストプレースホルダーの動作と一致するように要素として挿入:
+        // 独自のスタイルで、カーソル/変更に対してアトミックに扱われる。
         self.textarea.insert_element(&placeholder);
         self.attached_images
             .push(AttachedImage { placeholder, path });
@@ -356,9 +355,9 @@ impl ChatComposer {
         PasteBurst::recommended_flush_delay()
     }
 
-    /// Integrate results from an asynchronous file search.
+    /// 非同期ファイル検索の結果を統合。
     pub(crate) fn on_file_search_result(&mut self, query: String, matches: Vec<FileMatch>) {
-        // Only apply if user is still editing a token starting with `query`.
+        // ユーザーがまだ `query` で始まるトークンを編集中の場合のみ適用。
         let current_opt = Self::current_at_token(&self.textarea);
         let Some(current_token) = current_opt else {
             return;
@@ -399,7 +398,7 @@ impl ChatComposer {
         self.sync_popups();
     }
 
-    /// Handle a key event coming from the main UI.
+    /// メインUIからのキーイベントを処理。
     pub fn handle_key_event(&mut self, key_event: KeyEvent) -> (InputResult, bool) {
         let result = match &mut self.active_popup {
             ActivePopup::Command(_) => self.handle_key_event_with_slash_popup(key_event),
@@ -408,18 +407,18 @@ impl ChatComposer {
             ActivePopup::None => self.handle_key_event_without_popup(key_event),
         };
 
-        // Update (or hide/show) popup after processing the key.
+        // キー処理後にポップアップを更新（または非表示/表示）。
         self.sync_popups();
 
         result
     }
 
-    /// Return true if either the slash-command popup or the file-search popup is active.
+    /// スラッシュコマンドポップアップまたはファイル検索ポップアップがアクティブな場合にtrueを返す。
     pub(crate) fn popup_active(&self) -> bool {
         !matches!(self.active_popup, ActivePopup::None)
     }
 
-    /// Handle key event when the slash-command popup is visible.
+    /// スラッシュコマンドポップアップが表示されているときのキーイベントを処理。
     fn handle_key_event_with_slash_popup(&mut self, key_event: KeyEvent) -> (InputResult, bool) {
         if self.handle_shortcut_overlay_key(&key_event) {
             return (InputResult::None, true);
@@ -464,15 +463,15 @@ impl ChatComposer {
             KeyEvent {
                 code: KeyCode::Esc, ..
             } => {
-                // Dismiss the slash popup; keep the current input untouched.
+                // スラッシュポップアップを閉じる。現在の入力はそのまま維持。
                 self.active_popup = ActivePopup::None;
                 (InputResult::None, true)
             }
             KeyEvent {
                 code: KeyCode::Tab, ..
             } => {
-                // Ensure popup filtering/selection reflects the latest composer text
-                // before applying completion.
+                // 補完を適用する前に、ポップアップのフィルタリング/選択が
+                // 最新のコンポーザーテキストを反映していることを確認。
                 let first_line = self.textarea.text().lines().next().unwrap_or("");
                 popup.on_composer_text_change(first_line.to_string());
                 if let Some(sel) = popup.selected_item() {
@@ -522,9 +521,8 @@ impl ChatComposer {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => {
-                // If the current line starts with a custom prompt name and includes
-                // positional args for a numeric-style template, expand and submit
-                // immediately regardless of the popup selection.
+                // 現在の行がカスタムプロンプト名で始まり、数値スタイルテンプレートの
+                // 位置引数を含む場合、ポップアップ選択に関係なく即座に展開して送信。
                 let first_line = self.textarea.text().lines().next().unwrap_or("");
                 if let Some((name, _rest)) = parse_slash_name(first_line)
                     && let Some(prompt_name) = name.strip_prefix(&format!("{PROMPTS_CMD_PREFIX}:"))
@@ -565,7 +563,7 @@ impl ChatComposer {
                         }
                     }
                 }
-                // Fallback to default newline handling if no command selected.
+                // コマンドが選択されていない場合はデフォルトの改行処理にフォールバック。
                 self.handle_key_event_without_popup(key_event)
             }
             input => self.handle_input_basic(input),
@@ -608,7 +606,7 @@ impl ChatComposer {
         (InputResult::None, true)
     }
 
-    /// Handle key events when file search popup is visible.
+    /// ファイル検索ポップアップが表示されているときのキーイベントを処理。
     fn handle_key_event_with_file_popup(&mut self, key_event: KeyEvent) -> (InputResult, bool) {
         if self.handle_shortcut_overlay_key(&key_event) {
             return (InputResult::None, true);
@@ -653,7 +651,7 @@ impl ChatComposer {
             KeyEvent {
                 code: KeyCode::Esc, ..
             } => {
-                // Hide popup without modifying text, remember token to avoid immediate reopen.
+                // テキストを変更せずにポップアップを非表示、即時再開を避けるためトークンを記憶。
                 if let Some(tok) = Self::current_at_token(&self.textarea) {
                     self.dismissed_file_popup_token = Some(tok);
                 }
@@ -674,22 +672,22 @@ impl ChatComposer {
                 };
 
                 let sel_path = sel.to_string();
-                // If selected path looks like an image (png/jpeg), attach as image instead of inserting text.
+                // 選択されたパスが画像（png/jpeg）に見える場合、テキスト挿入の代わりに画像として添付。
                 let is_image = Self::is_image_path(&sel_path);
                 if is_image {
-                    // Determine dimensions; if that fails fall back to normal path insertion.
+                    // 寸法を取得。失敗した場合は通常のパス挿入にフォールバック。
                     let path_buf = PathBuf::from(&sel_path);
                     if let Ok((w, h)) = image::image_dimensions(&path_buf) {
-                        // Remove the current @token (mirror logic from insert_selected_path without inserting text)
-                        // using the flat text and byte-offset cursor API.
+                        // フラットテキストとバイトオフセットカーソルAPIを使用して、
+                        // 現在の@トークンを削除（insert_selected_pathのロジックをミラー、テキスト挿入なし）。
                         let cursor_offset = self.textarea.cursor();
                         let text = self.textarea.text();
-                        // Clamp to a valid char boundary to avoid panics when slicing.
+                        // スライス時のパニックを避けるため有効な文字境界にクランプ。
                         let safe_cursor = Self::clamp_to_char_boundary(text, cursor_offset);
                         let before_cursor = &text[..safe_cursor];
                         let after_cursor = &text[safe_cursor..];
 
-                        // Determine token boundaries in the full text.
+                        // フルテキストでトークンの境界を決定。
                         let start_idx = before_cursor
                             .char_indices()
                             .rfind(|(_, c)| c.is_whitespace())
@@ -715,17 +713,17 @@ impl ChatComposer {
                             _ => "IMG",
                         };
                         self.attach_image(path_buf, w, h, format_label);
-                        // Add a trailing space to keep typing fluid.
+                        // タイピングをスムーズに維持するため末尾にスペースを追加。
                         self.textarea.insert_str(" ");
                     } else {
-                        // Fallback to plain path insertion if metadata read fails.
+                        // メタデータ読み取りに失敗した場合はプレーンなパス挿入にフォールバック。
                         self.insert_selected_path(&sel_path);
                     }
                 } else {
-                    // Non-image: inserting file path.
+                    // 画像以外: ファイルパスを挿入。
                     self.insert_selected_path(&sel_path);
                 }
-                // No selection: treat Enter as closing the popup/session.
+                // 選択なし: Enterをポップアップ/セッションを閉じるものとして扱う。
                 self.active_popup = ActivePopup::None;
                 (InputResult::None, true)
             }
@@ -816,17 +814,17 @@ impl ChatComposer {
         self.skills.as_ref()
     }
 
-    /// Extract a token prefixed with `prefix` under the cursor, if any.
+    /// カーソル下の `prefix` で始まるトークンを抽出（存在する場合）。
     ///
-    /// The returned string **does not** include the prefix.
+    /// 返される文字列にはプレフィックスは**含まれない**。
     ///
-    /// Behavior:
-    /// - The cursor may be anywhere *inside* the token (including on the
-    ///   leading prefix). It does **not** need to be at the end of the line.
-    /// - A token is delimited by ASCII whitespace (space, tab, newline).
-    /// - If the token under the cursor starts with `prefix`, that token is
-    ///   returned without the leading prefix. When `allow_empty` is true, a
-    ///   lone prefix character yields `Some(String::new())` to surface hints.
+    /// 動作:
+    /// - カーソルはトークン内のどこにあってもよい（先頭のプレフィックス上を含む）。
+    ///   行末にある必要は**ない**。
+    /// - トークンはASCII空白文字（スペース、タブ、改行）で区切られる。
+    /// - カーソル下のトークンが `prefix` で始まる場合、先頭のプレフィックスなしで
+    ///   そのトークンが返される。`allow_empty` がtrueの場合、単独のプレフィックス文字は
+    ///   ヒントを表示するため `Some(String::new())` を返す。
     fn current_prefixed_token(
         textarea: &TextArea,
         prefix: char,
@@ -835,11 +833,11 @@ impl ChatComposer {
         let cursor_offset = textarea.cursor();
         let text = textarea.text();
 
-        // Adjust the provided byte offset to the nearest valid char boundary at or before it.
+        // 提供されたバイトオフセットを、その位置以前の最も近い有効な文字境界に調整。
         let mut safe_cursor = cursor_offset.min(text.len());
-        // If we're not on a char boundary, move back to the start of the current char.
+        // 文字境界上にない場合、現在の文字の先頭に戻る。
         if safe_cursor < text.len() && !text.is_char_boundary(safe_cursor) {
-            // Find the last valid boundary <= cursor_offset.
+            // cursor_offset以下の最後の有効な境界を見つける。
             safe_cursor = text
                 .char_indices()
                 .map(|(i, _)| i)
@@ -848,11 +846,11 @@ impl ChatComposer {
                 .unwrap_or(0);
         }
 
-        // Split the line around the (now safe) cursor position.
+        // （安全になった）カーソル位置で行を分割。
         let before_cursor = &text[..safe_cursor];
         let after_cursor = &text[safe_cursor..];
 
-        // Detect whether we're on whitespace at the cursor boundary.
+        // カーソル境界が空白上にあるかどうかを検出。
         let at_whitespace = if safe_cursor < text.len() {
             text[safe_cursor..]
                 .chars()
@@ -863,7 +861,7 @@ impl ChatComposer {
             false
         };
 
-        // Left candidate: token containing the cursor position.
+        // 左候補: カーソル位置を含むトークン。
         let start_left = before_cursor
             .char_indices()
             .rfind(|(_, c)| c.is_whitespace())
@@ -881,7 +879,7 @@ impl ChatComposer {
             None
         };
 
-        // Right candidate: token immediately after any whitespace from the cursor.
+        // 右候補: カーソルから空白を挟んですぐ後のトークン。
         let ws_len_right: usize = after_cursor
             .chars()
             .take_while(|c| c.is_whitespace())
@@ -922,9 +920,9 @@ impl ChatComposer {
         left_prefixed.or(right_prefixed)
     }
 
-    /// Extract the `@token` that the cursor is currently positioned on, if any.
+    /// カーソルが現在位置している `@token` を抽出（存在する場合）。
     ///
-    /// The returned string **does not** include the leading `@`.
+    /// 返される文字列には先頭の `@` は**含まれない**。
     fn current_at_token(textarea: &TextArea) -> Option<String> {
         Self::current_prefixed_token(textarea, '@', false)
     }
@@ -936,21 +934,20 @@ impl ChatComposer {
         Self::current_prefixed_token(&self.textarea, '$', true)
     }
 
-    /// Replace the active `@token` (the one under the cursor) with `path`.
+    /// アクティブな `@token`（カーソル下のもの）を `path` で置換。
     ///
-    /// The algorithm mirrors `current_at_token` so replacement works no matter
-    /// where the cursor is within the token and regardless of how many
-    /// `@tokens` exist in the line.
+    /// アルゴリズムは `current_at_token` をミラーしているため、カーソルがトークン内の
+    /// どこにあっても、また行内に `@tokens` がいくつ存在しても置換が機能する。
     fn insert_selected_path(&mut self, path: &str) {
         let cursor_offset = self.textarea.cursor();
         let text = self.textarea.text();
-        // Clamp to a valid char boundary to avoid panics when slicing.
+        // スライス時のパニックを避けるため有効な文字境界にクランプ。
         let safe_cursor = Self::clamp_to_char_boundary(text, cursor_offset);
 
         let before_cursor = &text[..safe_cursor];
         let after_cursor = &text[safe_cursor..];
 
-        // Determine token boundaries.
+        // トークンの境界を決定。
         let start_idx = before_cursor
             .char_indices()
             .rfind(|(_, c)| c.is_whitespace())
@@ -964,9 +961,9 @@ impl ChatComposer {
             .unwrap_or(after_cursor.len());
         let end_idx = safe_cursor + end_rel_idx;
 
-        // If the path contains whitespace, wrap it in double quotes so the
-        // local prompt arg parser treats it as a single argument. Avoid adding
-        // quotes when the path already contains one to keep behavior simple.
+        // パスに空白が含まれている場合、ローカルプロンプト引数パーサーが
+        // 単一の引数として扱うようダブルクォートで囲む。動作をシンプルに
+        // 保つため、パスに既にクォートが含まれている場合は追加しない。
         let needs_quotes = path.chars().any(char::is_whitespace);
         let inserted = if needs_quotes && !path.contains('"') {
             format!("\"{path}\"")
@@ -974,7 +971,7 @@ impl ChatComposer {
             path.to_string()
         };
 
-        // Replace the slice `[start_idx, end_idx)` with the chosen path and a trailing space.
+        // スライス `[start_idx, end_idx)` を選択されたパスと末尾スペースで置換。
         let mut new_text =
             String::with_capacity(text.len() - (end_idx - start_idx) + inserted.len() + 1);
         new_text.push_str(&text[..start_idx]);
@@ -1022,7 +1019,7 @@ impl ChatComposer {
         self.textarea.set_cursor(new_cursor);
     }
 
-    /// Handle key event when no popup is visible.
+    /// ポップアップが表示されていないときのキーイベントを処理。
     fn handle_key_event_without_popup(&mut self, key_event: KeyEvent) -> (InputResult, bool) {
         if self.handle_shortcut_overlay_key(&key_event) {
             return (InputResult::None, true);
@@ -1049,9 +1046,8 @@ impl ChatComposer {
                 (InputResult::None, true)
             }
             // -------------------------------------------------------------
-            // History navigation (Up / Down) – only when the composer is not
-            // empty or when the cursor is at the correct position, to avoid
-            // interfering with normal cursor movement.
+            // 履歴ナビゲーション（上/下）– 通常のカーソル移動を妨げないよう、
+            // コンポーザーが空でないか、カーソルが正しい位置にあるときのみ。
             // -------------------------------------------------------------
             KeyEvent {
                 code: KeyCode::Up | KeyCode::Down,
@@ -1085,13 +1081,13 @@ impl ChatComposer {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => {
-                // If the first line is a bare built-in slash command (no args),
-                // dispatch it even when the slash popup isn't visible. This preserves
-                // the workflow: type a prefix ("/di"), press Tab to complete to
-                // "/diff ", then press Enter to run it. Tab moves the cursor beyond
-                // the '/name' token and our caret-based heuristic hides the popup,
-                // but Enter should still dispatch the command rather than submit
-                // literal text.
+                // 最初の行が（引数なしの）ビルトインスラッシュコマンドの場合、
+                // スラッシュポップアップが表示されていなくてもディスパッチ。
+                // これにより次のワークフローが維持される: プレフィックス("/di")を入力し、
+                // Tabで"/diff "に補完、Enterで実行。Tabはカーソルを'/name'トークンの
+                // 先に移動させ、キャレットベースのヒューリスティックがポップアップを
+                // 非表示にするが、Enterはリテラルテキストを送信するのではなく
+                // コマンドをディスパッチすべき。
                 let first_line = self.textarea.text().lines().next().unwrap_or("");
                 if let Some((name, rest)) = parse_slash_name(first_line)
                     && rest.is_empty()
@@ -1102,9 +1098,9 @@ impl ChatComposer {
                     self.textarea.set_text("");
                     return (InputResult::Command(cmd), true);
                 }
-                // If we're in a paste-like burst capture, treat Enter as part of the burst
-                // and accumulate it rather than submitting or inserting immediately.
-                // Do not treat Enter as paste inside a slash-command context.
+                // ペーストのようなバーストキャプチャ中は、Enterをバーストの一部として
+                // 扱い、即座に送信や挿入するのではなく蓄積する。
+                // スラッシュコマンドコンテキスト内ではEnterをペーストとして扱わない。
                 let in_slash_context = matches!(self.active_popup, ActivePopup::Command(_))
                     || self
                         .textarea
@@ -1119,8 +1115,8 @@ impl ChatComposer {
                         return (InputResult::None, true);
                     }
                 }
-                // If we have pending placeholder pastes, replace them in the textarea text
-                // and continue to the normal submission flow to handle slash commands.
+                // 保留中のプレースホルダーペーストがある場合、テキストエリア内のテキストで
+                // 置換し、スラッシュコマンドを処理する通常の送信フローに進む。
                 if !self.pending_pastes.is_empty() {
                     let mut text = self.textarea.text().to_string();
                     for (placeholder, actual) in &self.pending_pastes {
@@ -1132,7 +1128,7 @@ impl ChatComposer {
                     self.pending_pastes.clear();
                 }
 
-                // During a paste-like burst, treat Enter as a newline instead of submit.
+                // ペーストのようなバースト中は、Enterを送信ではなく改行として扱う。
                 let now = Instant::now();
                 if self
                     .paste_burst
@@ -1148,7 +1144,7 @@ impl ChatComposer {
                 let input_starts_with_space = original_input.starts_with(' ');
                 self.textarea.set_text("");
 
-                // Replace all pending pastes in the text
+                // テキスト内のすべての保留中ペーストを置換
                 for (placeholder, actual) in &self.pending_pastes {
                     if text.contains(placeholder) {
                         text = text.replace(placeholder, actual);
@@ -1156,7 +1152,7 @@ impl ChatComposer {
                 }
                 self.pending_pastes.clear();
 
-                // If there is neither text nor attachments, suppress submission entirely.
+                // テキストも添付ファイルもない場合、送信を完全に抑制。
                 let has_attachments = !self.attached_images.is_empty();
                 text = text.trim().to_string();
                 if let Some((name, _rest)) = parse_slash_name(&text) {
@@ -1208,7 +1204,7 @@ impl ChatComposer {
                 if !text.is_empty() {
                     self.history.record_local_submission(&text);
                 }
-                // Do not clear attached_images here; ChatWidget drains them via take_recent_submission_images().
+                // attached_imagesはここでクリアしない。ChatWidgetがtake_recent_submission_images()でドレインする。
                 (InputResult::Submitted(text), true)
             }
             input => self.handle_input_basic(input),
@@ -1222,8 +1218,8 @@ impl ChatComposer {
                 true
             }
             FlushResult::Typed(ch) => {
-                // Mirror insert_str() behavior so popups stay in sync when a
-                // pending fast char flushes as normal typed input.
+                // 保留中の高速文字が通常のタイプ入力としてフラッシュされるとき、
+                // ポップアップが同期するようinsert_str()の動作をミラー。
                 self.textarea.insert_str(ch.to_string().as_str());
                 self.sync_popups();
                 true
@@ -1232,10 +1228,10 @@ impl ChatComposer {
         }
     }
 
-    /// Handle generic Input events that modify the textarea content.
+    /// テキストエリアのコンテンツを変更する汎用Inputイベントを処理。
     fn handle_input_basic(&mut self, input: KeyEvent) -> (InputResult, bool) {
-        // If we have a buffered non-bracketed paste burst and enough time has
-        // elapsed since the last char, flush it before handling a new input.
+        // バッファされた非ブラケットペーストバーストがあり、最後の文字から
+        // 十分な時間が経過している場合、新しい入力を処理する前にフラッシュ。
         let now = Instant::now();
         self.handle_paste_burst_flush(now);
 
@@ -1243,7 +1239,7 @@ impl ChatComposer {
             self.footer_mode = reset_mode_after_activity(self.footer_mode);
         }
 
-        // If we're capturing a burst and receive Enter, accumulate it instead of inserting.
+        // バーストをキャプチャ中にEnterを受信した場合、挿入ではなく蓄積。
         if matches!(input.code, KeyCode::Enter)
             && self.paste_burst.is_active()
             && self.paste_burst.append_newline_if_active(now)
@@ -1251,7 +1247,7 @@ impl ChatComposer {
             return (InputResult::None, true);
         }
 
-        // Intercept plain Char inputs to optionally accumulate into a burst buffer.
+        // プレーンなChar入力をインターセプトし、オプションでバーストバッファに蓄積。
         if let KeyEvent {
             code: KeyCode::Char(ch),
             modifiers,
@@ -1260,9 +1256,9 @@ impl ChatComposer {
         {
             let has_ctrl_or_alt = has_ctrl_or_alt(modifiers);
             if !has_ctrl_or_alt {
-                // Non-ASCII characters (e.g., from IMEs) can arrive in quick bursts and be
-                // misclassified by paste heuristics. Flush any active burst buffer and insert
-                // non-ASCII characters directly.
+                // 非ASCII文字（例：IMEから）は高速バーストで到着し、ペーストヒューリスティック
+                // によって誤分類される可能性がある。アクティブなバーストバッファをフラッシュし、
+                // 非ASCII文字を直接挿入。
                 if !ch.is_ascii() {
                     return self.handle_non_ascii_char(input);
                 }
@@ -1288,16 +1284,16 @@ impl ChatComposer {
                             self.paste_burst.append_char_to_buffer(ch, now);
                             return (InputResult::None, true);
                         }
-                        // If decide_begin_buffer opted not to start buffering,
-                        // fall through to normal insertion below.
+                        // decide_begin_bufferがバッファリングを開始しないことを選択した場合、
+                        // 下の通常挿入にフォールスルー。
                     }
                     CharDecision::BeginBufferFromPending => {
-                        // First char was held; now append the current one.
+                        // 最初の文字が保持された。現在の文字を追加。
                         self.paste_burst.append_char_to_buffer(ch, now);
                         return (InputResult::None, true);
                     }
                     CharDecision::RetainFirstChar => {
-                        // Keep the first fast char pending momentarily.
+                        // 最初の高速文字を一時的に保留中に保つ。
                         return (InputResult::None, true);
                     }
                 }
@@ -1307,8 +1303,8 @@ impl ChatComposer {
             }
         }
 
-        // For non-char inputs (or after flushing), handle normally.
-        // Special handling for backspace on placeholders
+        // 非文字入力の場合（またはフラッシュ後）、通常どおり処理。
+        // プレースホルダー上のバックスペースの特別処理
         if let KeyEvent {
             code: KeyCode::Backspace,
             ..
@@ -1318,11 +1314,11 @@ impl ChatComposer {
             return (InputResult::None, true);
         }
 
-        // Normal input handling
+        // 通常の入力処理
         self.textarea.input(input);
         let text_after = self.textarea.text();
 
-        // Update paste-burst heuristic for plain Char (no Ctrl/Alt) events.
+        // プレーンなChar（Ctrl/Altなし）イベントのペーストバーストヒューリスティックを更新。
         let crossterm::event::KeyEvent {
             code, modifiers, ..
         } = input;
@@ -1334,20 +1330,20 @@ impl ChatComposer {
                 }
             }
             KeyCode::Enter => {
-                // Keep burst window alive (supports blank lines in paste).
+                // バーストウィンドウを維持（ペースト内の空行をサポート）。
             }
             _ => {
-                // Other keys: clear burst window (buffer should have been flushed above if needed).
+                // その他のキー: バーストウィンドウをクリア（必要に応じてバッファは上でフラッシュ済み）。
                 self.paste_burst.clear_window_after_non_char();
             }
         }
 
-        // Check if any placeholders were removed and remove their corresponding pending pastes
+        // プレースホルダーが削除されたかチェックし、対応する保留中ペーストも削除
         self.pending_pastes
             .retain(|(placeholder, _)| text_after.contains(placeholder));
 
-        // Keep attached images in proportion to how many matching placeholders exist in the text.
-        // This handles duplicate placeholders that share the same visible label.
+        // テキスト内に存在する一致するプレースホルダーの数に応じて添付画像を保持。
+        // 同じ表示ラベルを共有する重複プレースホルダーを処理。
         if !self.attached_images.is_empty() {
             let mut needed: HashMap<String, usize> = HashMap::new();
             for img in &self.attached_images {
@@ -1372,17 +1368,17 @@ impl ChatComposer {
         (InputResult::None, true)
     }
 
-    /// Attempts to remove an image or paste placeholder if the cursor is at the end of one.
-    /// Returns true if a placeholder was removed.
+    /// カーソルが画像またはペーストプレースホルダーの末尾にある場合、削除を試みる。
+    /// プレースホルダーが削除された場合はtrueを返す。
     fn try_remove_any_placeholder_at_cursor(&mut self) -> bool {
-        // Clamp the cursor to a valid char boundary to avoid panics when slicing.
+        // スライス時のパニックを避けるためカーソルを有効な文字境界にクランプ。
         let text = self.textarea.text();
         let p = Self::clamp_to_char_boundary(text, self.textarea.cursor());
 
-        // Try image placeholders first
+        // まず画像プレースホルダーを試行
         let mut out: Option<(usize, String)> = None;
-        // Detect if the cursor is at the end of any image placeholder.
-        // If duplicates exist, remove the specific occurrence's mapping.
+        // カーソルがいずれかの画像プレースホルダーの末尾にあるか検出。
+        // 重複がある場合、特定の出現のマッピングを削除。
         for (i, img) in self.attached_images.iter().enumerate() {
             let ph = &img.placeholder;
             if p < ph.len() {
@@ -1393,7 +1389,7 @@ impl ChatComposer {
                 continue;
             }
 
-            // Count the number of occurrences of `ph` before `start`.
+            // `start` より前の `ph` の出現回数をカウント。
             let mut occ_before = 0usize;
             let mut search_pos = 0usize;
             while search_pos < start {
@@ -1409,7 +1405,7 @@ impl ChatComposer {
                 }
             }
 
-            // Remove the occ_before-th attached image that shares this placeholder label.
+            // このプレースホルダーラベルを共有するocc_before番目の添付画像を削除。
             out = if let Some((remove_idx, _)) = self
                 .attached_images
                 .iter()
@@ -1429,7 +1425,7 @@ impl ChatComposer {
             return true;
         }
 
-        // Also handle when the cursor is at the START of an image placeholder.
+        // カーソルが画像プレースホルダーの先頭にある場合も処理。
         // let result = 'out: {
         let out: Option<(usize, String)> = 'out: {
             for (i, img) in self.attached_images.iter().enumerate() {
@@ -1441,7 +1437,7 @@ impl ChatComposer {
                     continue;
                 }
 
-                // Count occurrences of `ph` before `p`.
+                // `p` より前の `ph` の出現回数をカウント。
                 let mut occ_before = 0usize;
                 let mut search_pos = 0usize;
                 while search_pos < p {
@@ -1478,7 +1474,7 @@ impl ChatComposer {
             return true;
         }
 
-        // Then try pasted-content placeholders
+        // 次にペーストされたコンテンツのプレースホルダーを試行
         if let Some(placeholder) = self.pending_pastes.iter().find_map(|(ph, _)| {
             if p < ph.len() {
                 return None;
@@ -1495,7 +1491,7 @@ impl ChatComposer {
             return true;
         }
 
-        // Also handle when the cursor is at the START of a pasted-content placeholder.
+        // カーソルがペーストコンテンツプレースホルダーの先頭にある場合も処理。
         if let Some(placeholder) = self.pending_pastes.iter().find_map(|(ph, _)| {
             if p + ph.len() > text.len() {
                 return None;
@@ -1565,12 +1561,12 @@ impl ChatComposer {
             .map(|items| if items.is_empty() { 0 } else { 1 })
     }
 
-    /// Update the footer's view of transcript scroll state for the inline viewport.
+    /// インラインビューポートのトランスクリプトスクロール状態のフッタービューを更新。
     ///
-    /// This state is derived from the main `App`'s transcript viewport and passed
-    /// through the bottom pane so the footer can indicate when the transcript is
-    /// scrolled away from the bottom, whether a selection is active, and the
-    /// current `(visible_top, total)` position.
+    /// この状態はメインの `App` のトランスクリプトビューポートから導出され、
+    /// ボトムペインを通じて渡されるため、フッターはトランスクリプトが下部から
+    /// スクロールされているか、選択がアクティブか、現在の `(visible_top, total)`
+    /// 位置を示すことができる。
     pub(crate) fn set_transcript_ui_state(
         &mut self,
         scrolled: bool,
@@ -1617,9 +1613,9 @@ impl ChatComposer {
         }
     }
 
-    /// If the cursor is currently within a slash command on the first line,
-    /// extract the command name and the rest of the line after it.
-    /// Returns None if the cursor is outside a slash command.
+    /// カーソルが現在最初の行のスラッシュコマンド内にある場合、
+    /// コマンド名とその後の行の残りを抽出。
+    /// カーソルがスラッシュコマンドの外にある場合はNoneを返す。
     fn slash_command_under_cursor(first_line: &str, cursor: usize) -> Option<(&str, &str)> {
         if !first_line.starts_with('/') {
             return None;
@@ -1645,9 +1641,9 @@ impl ChatComposer {
         Some((name, rest))
     }
 
-    /// Heuristic for whether the typed slash command looks like a valid
-    /// prefix for any known command (built-in or custom prompt).
-    /// Empty names only count when there is no extra content after the '/'.
+    /// 入力されたスラッシュコマンドが既知のコマンド（ビルトインまたはカスタムプロンプト）
+    /// の有効なプレフィックスに見えるかのヒューリスティック。
+    /// 空の名前は '/' の後に追加コンテンツがない場合のみカウント。
     fn looks_like_slash_prefix(&self, name: &str, rest_after_name: &str) -> bool {
         if name.is_empty() {
             return rest_after_name.is_empty();
@@ -1667,9 +1663,9 @@ impl ChatComposer {
             .any(|p| fuzzy_match(&format!("{prompt_prefix}{}", p.name), name).is_some())
     }
 
-    /// Synchronize `self.command_popup` with the current text in the
-    /// textarea. This must be called after every modification that can change
-    /// the text so the popup is shown/updated/hidden as appropriate.
+    /// `self.command_popup` をテキストエリアの現在のテキストと同期。
+    /// テキストを変更できるすべての変更後に呼び出す必要があり、
+    /// ポップアップが適切に表示/更新/非表示される。
     fn sync_command_popup(&mut self, allow: bool) {
         if !allow {
             if matches!(self.active_popup, ActivePopup::Command(_)) {
@@ -1677,7 +1673,7 @@ impl ChatComposer {
             }
             return;
         }
-        // Determine whether the caret is inside the initial '/name' token on the first line.
+        // キャレットが最初の行の初期'/name'トークン内にあるかどうかを判定。
         let text = self.textarea.text();
         let first_line_end = text.find('\n').unwrap_or(text.len());
         let first_line = &text[..first_line_end];
@@ -1688,9 +1684,9 @@ impl ChatComposer {
             && Self::slash_command_under_cursor(first_line, cursor)
                 .is_some_and(|(name, rest)| self.looks_like_slash_prefix(name, rest));
 
-        // If the cursor is currently positioned within an `@token`, prefer the
-        // file-search popup over the slash popup so users can insert a file path
-        // as an argument to the command (e.g., "/review @docs/...").
+        // カーソルが現在 `@token` 内に位置している場合、ユーザーがコマンドの引数として
+        // ファイルパスを挿入できるよう、スラッシュポップアップよりファイル検索ポップアップを優先
+        // （例: "/review @docs/..."）。
         if Self::current_at_token(&self.textarea).is_some() {
             if matches!(self.active_popup, ActivePopup::Command(_)) {
                 self.active_popup = ActivePopup::None;
@@ -1724,10 +1720,10 @@ impl ChatComposer {
         }
     }
 
-    /// Synchronize `self.file_search_popup` with the current text in the textarea.
-    /// Note this is only called when self.active_popup is NOT Command.
+    /// `self.file_search_popup` をテキストエリアの現在のテキストと同期。
+    /// これは self.active_popup が Command でない場合にのみ呼び出されることに注意。
     fn sync_file_search_popup(&mut self, query: String) {
-        // If user dismissed popup for this exact query, don't reopen until text changes.
+        // ユーザーがこの正確なクエリでポップアップを閉じた場合、テキストが変わるまで再開しない。
         if self.dismissed_file_popup_token.as_ref() == Some(&query) {
             return;
         }
@@ -2185,7 +2181,7 @@ mod tests {
         assert!(needs_redraw, "toggling overlay should request redraw");
         assert_eq!(composer.footer_mode, FooterMode::ShortcutOverlay);
 
-        // Toggle back to prompt mode so subsequent typing captures characters.
+        // プロンプトモードに戻して後続のタイピングが文字をキャプチャするようにする。
         let _ = composer.handle_key_event(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE));
         assert_eq!(composer.footer_mode, FooterMode::ShortcutSummary);
 
@@ -2452,7 +2448,7 @@ mod tests {
             false,
         );
 
-        // Ensure composer is empty and press Enter.
+        // コンポーザーが空であることを確認してEnterを押す。
         assert!(composer.textarea.text().is_empty());
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -2517,7 +2513,7 @@ mod tests {
         composer.handle_paste(large);
         assert_eq!(composer.pending_pastes.len(), 1);
 
-        // Any edit that removes the placeholder should clear pending_paste
+        // プレースホルダーを削除する編集はpending_pasteをクリアすべき
         composer.handle_key_event(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
         assert!(composer.pending_pastes.is_empty());
     }
@@ -2546,7 +2542,7 @@ mod tests {
         ];
 
         for (name, input) in test_cases {
-            // Create a fresh composer for each test case
+            // 各テストケースで新しいコンポーザーを作成
             let mut composer = ChatComposer::new(
                 true,
                 sender.clone(),
@@ -2558,18 +2554,18 @@ mod tests {
             if let Some(text) = input {
                 composer.handle_paste(text);
             } else if name == "multiple_pastes" {
-                // First large paste
+                // 最初の大きなペースト
                 composer.handle_paste("x".repeat(LARGE_PASTE_CHAR_THRESHOLD + 3));
-                // Second large paste
+                // 2番目の大きなペースト
                 composer.handle_paste("y".repeat(LARGE_PASTE_CHAR_THRESHOLD + 7));
-                // Small paste
+                // 小さなペースト
                 composer.handle_paste(" another short paste".to_string());
             } else if name == "backspace_after_pastes" {
-                // Three large pastes
+                // 3つの大きなペースト
                 composer.handle_paste("a".repeat(LARGE_PASTE_CHAR_THRESHOLD + 2));
                 composer.handle_paste("b".repeat(LARGE_PASTE_CHAR_THRESHOLD + 4));
                 composer.handle_paste("c".repeat(LARGE_PASTE_CHAR_THRESHOLD + 6));
-                // Move cursor to end and press backspace
+                // カーソルを末尾に移動してバックスペースを押す
                 composer.textarea.set_cursor(composer.textarea.text().len());
                 composer.handle_key_event(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
             }
@@ -2598,7 +2594,7 @@ mod tests {
             false,
         );
 
-        // Type "/mo" humanlike so paste-burst doesn’t interfere.
+        // ペーストバーストが干渉しないよう"/mo"を人間らしくタイプ。
         type_chars_humanlike(&mut composer, &['/', 'm', 'o']);
 
         let mut terminal = match Terminal::new(TestBackend::new(60, 5)) {
@@ -2609,7 +2605,7 @@ mod tests {
             .draw(|f| composer.render(f.area(), f.buffer_mut()))
             .unwrap_or_else(|e| panic!("Failed to draw composer: {e}"));
 
-        // Visual snapshot should show the slash popup with /model as the first entry.
+        // ビジュアルスナップショットはスラッシュポップアップで/modelが最初のエントリとして表示されるべき。
         insta::assert_snapshot!("slash_popup_mo", terminal.backend());
     }
 
@@ -2657,7 +2653,7 @@ mod tests {
             false,
         );
 
-        // Type "/res" humanlike so paste-burst doesn’t interfere.
+        // ペーストバーストが干渉しないよう"/res"を人間らしくタイプ。
         type_chars_humanlike(&mut composer, &['/', 'r', 'e', 's']);
 
         let mut terminal = Terminal::new(TestBackend::new(60, 6)).expect("terminal");
@@ -2665,7 +2661,7 @@ mod tests {
             .draw(|f| composer.render(f.area(), f.buffer_mut()))
             .expect("draw composer");
 
-        // Snapshot should show /resume as the first entry for /res.
+        // スナップショットは/resに対して/resumeが最初のエントリとして表示されるべき。
         insta::assert_snapshot!("slash_popup_res", terminal.backend());
     }
 
@@ -2697,7 +2693,7 @@ mod tests {
         }
     }
 
-    // Test helper: simulate human typing with a brief delay and flush the paste-burst buffer
+    // テストヘルパー: 短い遅延で人間のタイピングをシミュレートし、ペーストバーストバッファをフラッシュ
     fn type_chars_humanlike(composer: &mut ChatComposer, chars: &[char]) {
         use crossterm::event::KeyCode;
         use crossterm::event::KeyEvent;
@@ -2725,15 +2721,15 @@ mod tests {
             false,
         );
 
-        // Type the slash command.
+        // スラッシュコマンドをタイプ。
         type_chars_humanlike(&mut composer, &['/', 'i', 'n', 'i', 't']);
 
-        // Press Enter to dispatch the selected command.
+        // 選択されたコマンドをディスパッチするためEnterを押す。
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-        // When a slash command is dispatched, the composer should return a
-        // Command result (not submit literal text) and clear its textarea.
+        // スラッシュコマンドがディスパッチされたとき、コンポーザーは（リテラルテキストを
+        // 送信するのではなく）Command結果を返し、テキストエリアをクリアすべき。
         match result {
             InputResult::Command(cmd) => {
                 assert_eq!(cmd.command(), "init");
@@ -2799,14 +2795,14 @@ mod tests {
             false,
         );
 
-        // Type a prefix and complete with Tab, which inserts a trailing space
-        // and moves the cursor beyond the '/name' token (hides the popup).
+        // プレフィックスをタイプしてTabで補完すると、末尾にスペースが挿入され
+        // カーソルが'/name'トークンの先に移動（ポップアップを非表示）。
         type_chars_humanlike(&mut composer, &['/', 'd', 'i']);
         let (_res, _redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
         assert_eq!(composer.textarea.text(), "/diff ");
 
-        // Press Enter: should dispatch the command, not submit literal text.
+        // Enterを押す: コマンドをディスパッチすべきで、リテラルテキストを送信しない。
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         match result {
@@ -2870,18 +2866,18 @@ mod tests {
             false,
         );
 
-        // Define test cases: (paste content, is_large)
+        // テストケースを定義: (ペースト内容, 大きいかどうか)
         let test_cases = [
             ("x".repeat(LARGE_PASTE_CHAR_THRESHOLD + 3), true),
             (" and ".to_string(), false),
             ("y".repeat(LARGE_PASTE_CHAR_THRESHOLD + 7), true),
         ];
 
-        // Expected states after each paste
+        // 各ペースト後の期待される状態
         let mut expected_text = String::new();
         let mut expected_pending_count = 0;
 
-        // Apply all pastes and build expected state
+        // すべてのペーストを適用し期待状態を構築
         let states: Vec<_> = test_cases
             .iter()
             .map(|(content, is_large)| {
@@ -2897,7 +2893,7 @@ mod tests {
             })
             .collect();
 
-        // Verify all intermediate states were correct
+        // すべての中間状態が正しいことを検証
         assert_eq!(
             states,
             vec![
@@ -2923,7 +2919,7 @@ mod tests {
             ]
         );
 
-        // Submit and verify final expansion
+        // 送信して最終展開を検証
         let (result, _) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         if let InputResult::Submitted(text) = result {
@@ -2949,14 +2945,14 @@ mod tests {
             false,
         );
 
-        // Define test cases: (content, is_large)
+        // テストケースを定義: (内容, 大きいかどうか)
         let test_cases = [
             ("a".repeat(LARGE_PASTE_CHAR_THRESHOLD + 5), true),
             (" and ".to_string(), false),
             ("b".repeat(LARGE_PASTE_CHAR_THRESHOLD + 6), true),
         ];
 
-        // Apply all pastes
+        // すべてのペーストを適用
         let mut current_pos = 0;
         let states: Vec<_> = test_cases
             .iter()
@@ -2976,10 +2972,10 @@ mod tests {
             })
             .collect();
 
-        // Delete placeholders one by one and collect states
+        // プレースホルダーを1つずつ削除して状態を収集
         let mut deletion_states = vec![];
 
-        // First deletion
+        // 最初の削除
         composer.textarea.set_cursor(states[0].2);
         composer.handle_key_event(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
         deletion_states.push((
@@ -2987,7 +2983,7 @@ mod tests {
             composer.pending_pastes.len(),
         ));
 
-        // Second deletion
+        // 2番目の削除
         composer.textarea.set_cursor(composer.textarea.text().len());
         composer.handle_key_event(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
         deletion_states.push((
@@ -2995,7 +2991,7 @@ mod tests {
             composer.pending_pastes.len(),
         ));
 
-        // Verify all states
+        // すべての状態を検証
         assert_eq!(
             deletion_states,
             vec![
@@ -3098,10 +3094,10 @@ mod tests {
             false,
         );
 
-        // Define test cases: (cursor_position_from_end, expected_pending_count)
+        // テストケースを定義: (末尾からのカーソル位置, 期待される保留カウント)
         let test_cases = [
-            5, // Delete from middle - should clear tracking
-            0, // Delete from end - should clear tracking
+            5, // 中間から削除 - トラッキングをクリアすべき
+            0, // 末尾から削除 - トラッキングをクリアすべき
         ];
 
         let paste = "x".repeat(LARGE_PASTE_CHAR_THRESHOLD + 4);
@@ -3127,13 +3123,13 @@ mod tests {
         assert_eq!(
             states,
             vec![
-                (false, 0), // After deleting from middle
-                (false, 0), // After deleting from end
+                (false, 0), // 中間から削除後
+                (false, 0), // 末尾から削除後
             ]
         );
     }
 
-    // --- Image attachment tests ---
+    // --- 画像添付テスト ---
     #[test]
     fn attach_image_and_submit_includes_image_paths() {
         let (tx, _rx) = unbounded_channel::<AppEvent>();
@@ -3647,7 +3643,7 @@ mod tests {
             argument_hint: None,
         }]);
 
-        // Provide only one of the required args
+        // 必須引数の1つだけを提供
         composer.textarea.set_text("/prompts:my-prompt USER=Alice");
 
         let (result, _needs_redraw) =
@@ -3679,7 +3675,7 @@ mod tests {
 
     #[test]
     fn selecting_custom_prompt_with_args_expands_placeholders() {
-        // Support $1..$9 and $ARGUMENTS in prompt content.
+        // プロンプト内容で $1..$9 と $ARGUMENTS をサポート。
         let prompt_text = "Header: $1\nArgs: $ARGUMENTS\nNinth: $9\n";
 
         let (tx, _rx) = unbounded_channel::<AppEvent>();
@@ -3700,7 +3696,7 @@ mod tests {
             argument_hint: None,
         }]);
 
-        // Type the slash command with two args and hit Enter to submit.
+        // スラッシュコマンドと2つの引数を入力し、Enterで送信。
         type_chars_humanlike(
             &mut composer,
             &[
@@ -3717,8 +3713,8 @@ mod tests {
 
     #[test]
     fn numeric_prompt_positional_args_does_not_error() {
-        // Ensure that a prompt with only numeric placeholders does not trigger
-        // key=value parsing errors when given positional arguments.
+        // 数値プレースホルダーのみを含むプロンプトが位置引数を与えられたとき
+        // key=valueパースエラーを発生させないことを確認。
         let (tx, _rx) = unbounded_channel::<AppEvent>();
         let sender = AppEventSender::new(tx);
         let mut composer = ChatComposer::new(
@@ -3737,7 +3733,7 @@ mod tests {
             argument_hint: None,
         }]);
 
-        // Type positional args; should submit with numeric expansion, no errors.
+        // 位置引数を入力。数値展開で送信され、エラーなし。
         composer.textarea.set_text("/prompts:elegant hi");
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -3775,15 +3771,15 @@ mod tests {
         let (result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
 
-        // With no args typed, selecting the prompt inserts the command template
-        // and does not submit immediately.
+        // 引数なしの場合、プロンプトを選択するとコマンドテンプレートが挿入され
+        // 即座には送信されない。
         assert_eq!(InputResult::None, result);
         assert_eq!("/prompts:p ", composer.textarea.text());
     }
 
     #[test]
     fn selecting_custom_prompt_preserves_literal_dollar_dollar() {
-        // '$$' should remain untouched.
+        // '$$' はそのまま残す。
         let prompt_text = "Cost: $$ and first: $1";
 
         let (tx, _rx) = unbounded_channel::<AppEvent>();
@@ -3915,13 +3911,13 @@ mod tests {
             false,
         );
 
-        let count = LARGE_PASTE_CHAR_THRESHOLD + 1; // > threshold to trigger placeholder
+        let count = LARGE_PASTE_CHAR_THRESHOLD + 1; // > しきい値でプレースホルダーをトリガー
         for _ in 0..count {
             let _ =
                 composer.handle_key_event(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));
         }
 
-        // Nothing should appear until we stop and flush
+        // 停止してフラッシュするまで何も表示されないはず
         assert!(composer.textarea.text().is_empty());
         std::thread::sleep(ChatComposer::recommended_paste_flush_delay());
         let flushed = composer.flush_paste_burst_if_due();
@@ -3972,16 +3968,16 @@ mod tests {
             false,
         );
 
-        // Simulate history-like content: "/ test"
+        // 履歴風のコンテンツをシミュレート: "/ test"
         composer.set_text_content("/ test".to_string());
 
-        // After set_text_content -> sync_popups is called; popup should NOT be Command.
+        // set_text_content後 -> sync_popupsが呼ばれる。ポップアップはCommandであるべきではない。
         assert!(
             matches!(composer.active_popup, ActivePopup::None),
             "expected no slash popup for '/ test'"
         );
 
-        // Up should be handled by history navigation path, not slash popup handler.
+        // Upは履歴ナビゲーションパスで処理されるべきで、スラッシュポップアップハンドラではない。
         let (result, _redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
         assert_eq!(result, InputResult::None);
@@ -4002,30 +3998,30 @@ mod tests {
             false,
         );
 
-        // Case 1: bare "/"
+        // ケース1: 単独の "/"
         composer.set_text_content("/".to_string());
         assert!(
             matches!(composer.active_popup, ActivePopup::Command(_)),
             "bare '/' should activate slash popup"
         );
 
-        // Case 2: valid prefix "/re" (matches /review, /resume, etc.)
+        // ケース2: 有効なプレフィックス "/re"（/review, /resumeなどにマッチ）
         composer.set_text_content("/re".to_string());
         assert!(
             matches!(composer.active_popup, ActivePopup::Command(_)),
             "'/re' should activate slash popup via prefix match"
         );
 
-        // Case 3: fuzzy match "/ac" (subsequence of /compact and /feedback)
+        // ケース3: ファジーマッチ "/ac"（/compactと/feedbackの部分シーケンス）
         composer.set_text_content("/ac".to_string());
         assert!(
             matches!(composer.active_popup, ActivePopup::Command(_)),
             "'/ac' should activate slash popup via fuzzy match"
         );
 
-        // Case 4: invalid prefix "/zzz" – still allowed to open popup if it
-        // matches no built-in command; our current logic will not open popup.
-        // Verify that explicitly.
+        // ケース4: 無効なプレフィックス "/zzz" – 組み込みコマンドにマッチしない場合でも
+        // ポップアップを開くことは許可される。現在のロジックではポップアップを開かない。
+        // これを明示的に検証。
         composer.set_text_content("/zzz".to_string());
         assert!(
             matches!(composer.active_popup, ActivePopup::None),

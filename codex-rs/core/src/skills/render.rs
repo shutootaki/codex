@@ -1,21 +1,52 @@
+//! # Skills レンダリング
+//!
+//! 利用可能なスキル一覧をマークダウン形式で生成する。
+//! 生成されたマークダウンはシステムプロンプトの一部としてモデルに渡される。
+//!
+//! ## 役割
+//! - スキルのメタデータ（名前、説明、パス）を一覧表示
+//! - スキルの使用ルールやガイダンスを提供
+//! - モデルがスキルを適切に使用するための指示を含む
+
 use crate::skills::model::SkillMetadata;
 
+/// スキル一覧セクションをマークダウン形式で生成する。
+///
+/// ## 戻り値
+/// - `Some(String)`: スキルが存在する場合、マークダウン文字列を返す
+/// - `None`: スキルが空の場合（セクションを生成しない）
+///
+/// ## Option を返す理由
+/// スキルがない場合にセクション自体を省略するため。
+/// 呼び出し側で `if let Some(section) = render_skills_section(&skills)` のように
+/// 条件付きで処理できる。
 pub fn render_skills_section(skills: &[SkillMetadata]) -> Option<String> {
+    // スキルが空なら None を返す（セクションを生成しない）
     if skills.is_empty() {
         return None;
     }
 
+    // マークダウン行を格納するベクタ
     let mut lines: Vec<String> = Vec::new();
+
+    // セクションヘッダー
     lines.push("## Skills".to_string());
     lines.push("These skills are discovered at startup from multiple local sources. Each entry includes a name, description, and file path so you can open the source for full instructions.".to_string());
 
+    // 各スキルをリスト形式で追加
     for skill in skills {
+        // パス区切り文字を正規化（Windowsの \ を / に変換）
         let path_str = skill.path.to_string_lossy().replace('\\', "/");
+        // `.as_str()` は String から &str への変換
         let name = skill.name.as_str();
         let description = skill.description.as_str();
+        // `format!` マクロで文字列をフォーマット（Python の f-string に相当）
         lines.push(format!("- {name}: {description} (file: {path_str})"));
     }
 
+    // スキル使用ルールのガイダンスを追加
+    // `r###"..."###` は raw string リテラル（エスケープ不要、複数行OK）
+    // Python の r""" や """ に相当
     lines.push(
         r###"- Discovery: Available skills are listed in project docs and may also appear in a runtime "## Skills" section (name + description + file path). These are the sources of truth; skill bodies live on disk at the listed paths.
 - Trigger rules: If the user names a skill (with `$SkillName` or plain text) OR the task clearly matches a skill's description, you must use that skill for that turn. Multiple mentions mean use them all. Do not carry skills across turns unless re-mentioned.
@@ -37,5 +68,7 @@ pub fn render_skills_section(skills: &[SkillMetadata]) -> Option<String> {
             .to_string(),
     );
 
+    // 行を改行で結合して返す
+    // `.join("\n")` は Python の "\n".join(lines) に相当
     Some(lines.join("\n"))
 }
