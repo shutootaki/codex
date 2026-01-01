@@ -2188,19 +2188,33 @@ fn errors_to_info(errors: &[SkillError]) -> Vec<SkillErrorInfo> {
         .collect()
 }
 
-/// ユーザーメッセージを入力として受け取り、各ターンでモデルが以下のいずれかを
-/// 返すループを実行する:
+/// # タスク実行のエントリーポイント
 ///
-/// - リクエストされた関数呼び出し
-/// - アシスタントメッセージ
+/// ユーザーメッセージを入力として受け取り、モデルとの対話ループを実行する。
+/// このループは「タスク」と呼ばれ、複数の「ターン」から構成される。
 ///
-/// モデルが1つのターンで複数のアイテムを返すことは可能だが、実際には通常
-/// 1ターンにつき1つのアイテムを返す:
+/// ## アーキテクチャ概要
 ///
-/// - モデルが関数呼び出しをリクエストした場合、それを実行し、次のターンで
-///   出力をモデルに送り返す。
-/// - モデルがアシスタントメッセージのみを送信した場合、それを会話履歴に記録し、
-///   タスク完了とみなす。
+/// ```text
+/// run_task (タスク全体を管理)
+///    │
+///    └─► run_turn (1回のAPI呼び出し + レスポンス処理)
+///           │
+///           └─► try_run_turn (実際のストリーミング処理)
+/// ```
+///
+/// ## 処理フロー
+///
+/// 1. **初期化フェーズ**: トークン使用量チェック、スキル注入、イベント発行
+/// 2. **メインループ**: モデルとの対話を繰り返す
+///    - モデルが関数呼び出しをリクエスト → 実行して次のターンへ
+///    - モデルがメッセージのみを返す → タスク完了
+/// 3. **終了処理**: 最後のアシスタントメッセージを返す
+///
+/// ## 戻り値
+///
+/// - `Some(String)`: モデルが生成した最後のアシスタントメッセージ
+/// - `None`: 入力が空、またはエラーで終了した場合
 ///
 pub(crate) async fn run_task(
     sess: Arc<Session>,
@@ -2208,10 +2222,19 @@ pub(crate) async fn run_task(
     input: Vec<UserInput>,
     cancellation_token: CancellationToken,
 ) -> Option<String> {
+    // ════════════════════════════════════════════════════════════════════════
+    // フェーズ1: 早期リターンチェック
+    // ════════════════════════════════════════════════════════════════════════
     if input.is_empty() {
         return None;
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    // フェーズ2: トークン使用量の事前チェックと自動圧縮
+    // ════════════════════════════════════════════════════════════════════════
+    // モデルファミリーごとに設定されたトークン制限を取得。
+    // 制限に達している場合、新しいターンを開始する前に履歴を圧縮する。
+    // これにより、コンテキストウィンドウのオーバーフローを防ぐ。
     let auto_compact_limit = turn_context
         .client
         .get_model_family()
@@ -2221,11 +2244,23 @@ pub(crate) async fn run_task(
     if total_usage_tokens >= auto_compact_limit {
         run_auto_compact(&sess, &turn_context).await;
     }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // フェーズ3: タスク開始イベントの発行
+    // ════════════════════════════════════════════════════════════════════════
+    // UIやフロントエンドにタスク開始を通知し、モデルのコンテキストウィンドウ
+    // サイズを伝える。これにより、UIは進行状況を表示できる。
     let event = EventMsg::TaskStarted(TaskStartedEvent {
         model_context_window: turn_context.client.get_model_context_window(),
     });
     sess.send_event(&turn_context, event).await;
 
+    // ════════════════════════════════════════════════════════════════════════
+    // フェーズ4: スキルシステムの初期化と注入
+    // ════════════════════════════════════════════════════════════════════════
+    // スキル機能が有効な場合、現在の作業ディレクトリに関連するスキルを取得し、
+    // ユーザー入力に基づいてスキル注入アイテムを構築する。
+    // スキルは、特定のタスク（例：コードレビュー）のためのプロンプト拡張を提供する。
     let skills_outcome = sess.enabled(Feature::Skills).then(|| {
         sess.services
             .skills_manager
@@ -2233,36 +2268,67 @@ pub(crate) async fn run_task(
     });
 
     let SkillInjections {
-        items: skill_items,
-        warnings: skill_warnings,
+        items: skill_items,       // モデルに注入するスキル関連のアイテム
+        warnings: skill_warnings, // スキル処理中に発生した警告
     } = build_skill_injections(&input, skills_outcome.as_ref()).await;
 
+    // スキル処理中の警告をユーザーに通知
     for message in skill_warnings {
         sess.send_event(&turn_context, EventMsg::Warning(WarningEvent { message }))
             .await;
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    // フェーズ5: 会話履歴への初期入力の記録
+    // ════════════════════════════════════════════════════════════════════════
+    // ユーザー入力を会話履歴に追加し、UIにターンアイテム開始イベントを発行する。
+    // これにより、後続のターンでモデルがこの入力を参照できるようになる。
     let initial_input_for_turn: ResponseInputItem = ResponseInputItem::from(input);
     let response_item: ResponseItem = initial_input_for_turn.clone().into();
     sess.record_response_item_and_emit_turn_item(turn_context.as_ref(), response_item)
         .await;
 
+    // スキルアイテムがある場合は、それも会話履歴に追加
     if !skill_items.is_empty() {
         sess.record_conversation_items(&turn_context, &skill_items)
             .await;
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    // フェーズ6: ゴーストスナップショットの開始（オプション）
+    // ════════════════════════════════════════════════════════════════════════
+    // ゴーストスナップショットは、タスク実行中のファイル変更を追跡するための
+    // メカニズム。キャンセル可能な子トークンを使用して、タスクがキャンセル
+    // されたときにスナップショットも適切にクリーンアップされるようにする。
     sess.maybe_start_ghost_snapshot(Arc::clone(&turn_context), cancellation_token.child_token())
         .await;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // フェーズ7: メインループの状態初期化
+    // ════════════════════════════════════════════════════════════════════════
+    // last_agent_message: タスク完了時に返す最後のアシスタントメッセージ
     let mut last_agent_message: Option<String> = None;
-    // codex.rsの観点では、TurnDiffTrackerは複数のターンを含むTaskのライフサイクルを持つが、
-    // ユーザーの観点では、これは単一のターンである。
+
+    // TurnDiffTracker: このタスク中に行われたファイル変更を追跡する。
+    // 注意: codex.rsの観点では、TurnDiffTrackerは複数のターンを含むTaskの
+    // ライフサイクルを持つが、ユーザーの観点では、これは単一のターンである。
     let turn_diff_tracker = Arc::new(tokio::sync::Mutex::new(TurnDiffTracker::new()));
 
+    // ════════════════════════════════════════════════════════════════════════
+    // フェーズ8: メインループ（モデルとの対話ループ）
+    // ════════════════════════════════════════════════════════════════════════
+    // このループは以下の条件で終了する:
+    // - モデルがフォローアップを必要としないメッセージを返した場合（タスク完了）
+    // - エラーが発生した場合
+    // - タスクがキャンセルされた場合（TurnAborted）
     loop {
-        // pending_inputは、モデル実行中にユーザーがUIを通じて送信したメッセージなどを
-        // 指す。UIがこれをサポートしていても、モデルがサポートしていない場合がある
-        // ことに注意。
+        // ────────────────────────────────────────────────────────────────────
+        // ステップ8.1: 保留中の入力を収集
+        // ────────────────────────────────────────────────────────────────────
+        // pending_inputは、モデル実行中にユーザーがUIを通じて送信したメッセージ
+        // などを指す。例：モデルが長い処理をしている間にユーザーが追加の
+        // 指示を送信した場合。
+        // 注意: UIがこれをサポートしていても、モデルがサポートしていない場合がある。
         let pending_input = sess
             .get_pending_input()
             .await
@@ -2270,13 +2336,19 @@ pub(crate) async fn run_task(
             .map(ResponseItem::from)
             .collect::<Vec<ResponseItem>>();
 
-        // モデルに送信する入力を構築する。
+        // ────────────────────────────────────────────────────────────────────
+        // ステップ8.2: モデルに送信するプロンプトを構築
+        // ────────────────────────────────────────────────────────────────────
+        // 保留中の入力を会話履歴に記録し、完全な履歴を取得する。
+        // get_history_for_prompt()は、モデルに送信するために最適化された
+        // 形式で履歴を返す。
         let turn_input: Vec<ResponseItem> = {
             sess.record_conversation_items(&turn_context, &pending_input)
                 .await;
             sess.clone_history().await.get_history_for_prompt()
         };
 
+        // 通知用にユーザーメッセージのテキストを抽出（タスク完了時に使用）
         let turn_input_messages = turn_input
             .iter()
             .filter_map(|item| match parse_turn_item(item) {
@@ -2285,6 +2357,14 @@ pub(crate) async fn run_task(
             })
             .map(|user_message| user_message.message())
             .collect::<Vec<String>>();
+
+        // ────────────────────────────────────────────────────────────────────
+        // ステップ8.3: ターンの実行とレスポンス処理
+        // ────────────────────────────────────────────────────────────────────
+        // run_turnは1回のAPI呼び出しとそのレスポンス処理を行う。
+        // 戻り値のTurnRunResultには以下が含まれる:
+        // - needs_follow_up: モデルが関数呼び出しを要求し、追加ターンが必要か
+        // - last_agent_message: このターンでの最後のアシスタントメッセージ
         match run_turn(
             Arc::clone(&sess),
             Arc::clone(&turn_context),
@@ -2294,20 +2374,29 @@ pub(crate) async fn run_task(
         )
         .await
         {
+            // ────────────────────────────────────────────────────────────────
+            // ステップ8.4: ターン結果の処理（成功時）
+            // ────────────────────────────────────────────────────────────────
             Ok(turn_output) => {
                 let TurnRunResult {
-                    needs_follow_up,
-                    last_agent_message: turn_last_agent_message,
+                    needs_follow_up,                             // 追加ターンが必要か
+                    last_agent_message: turn_last_agent_message, // アシスタントのメッセージ
                 } = turn_output;
+
+                // トークン使用量をチェックし、制限に達しているか確認
                 let total_usage_tokens = sess.get_total_token_usage().await;
                 let token_limit_reached = total_usage_tokens >= auto_compact_limit;
 
+                // ケース1: トークン制限に達し、かつフォローアップが必要
+                // → 履歴を圧縮して次のターンを続行
                 // 圧縮がトークン制限を大幅に下回るように機能する限り、無限ループの心配は不要。
                 if token_limit_reached && needs_follow_up {
                     run_auto_compact(&sess, &turn_context).await;
                     continue;
                 }
 
+                // ケース2: フォローアップが不要（タスク完了）
+                // → 完了通知を送信してループを終了
                 if !needs_follow_up {
                     last_agent_message = turn_last_agent_message;
                     sess.notifier()
@@ -2320,40 +2409,85 @@ pub(crate) async fn run_task(
                         });
                     break;
                 }
+
+                // ケース3: フォローアップが必要（関数呼び出しの結果を待っている）
+                // → 次のターンを続行
                 continue;
             }
+
+            // ────────────────────────────────────────────────────────────────
+            // ステップ8.5: エラーハンドリング
+            // ────────────────────────────────────────────────────────────────
+
+            // エラー種別1: ターンが中断された（ユーザーによるキャンセルなど）
+            // 中断は既にキャンセルイベントとして報告されているため、ここでは
+            // 単にループを終了する。
             Err(CodexErr::TurnAborted) => {
-                // 中断されたターンは別のイベントを通じて報告される。
                 break;
             }
+
+            // エラー種別2: 無効な画像リクエスト
+            // 画像が無効な場合（破損、サポートされていない形式など）、
+            // 会話履歴をpoisoningから保護するため、その画像を無効なテキストで置換する。
+            // この後、ループを継続して次のターンを試みる。
             Err(CodexErr::InvalidImageRequest()) => {
                 let mut state = sess.state.lock().await;
                 error_or_panic(
                     "Invalid image detected, replacing it in the last turn to prevent poisoning",
                 );
                 state.history.replace_last_turn_images("Invalid image");
+                // 注意: ここでは`continue`せずに暗黙的に次のループ反復へ進む
             }
+
+            // エラー種別3: その他のエラー（ネットワークエラー、APIエラーなど）
+            // エラーをユーザーに通知し、ループを終了する。
+            // これにより、ユーザーは新しいメッセージを送信して会話を続けられる。
             Err(e) => {
                 info!("Turn error: {e:#}");
                 let event = EventMsg::Error(e.to_error_event(None));
                 sess.send_event(&turn_context, event).await;
-                // ユーザーが会話を続けられるようにする
                 break;
             }
         }
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    // フェーズ9: タスク完了
+    // ════════════════════════════════════════════════════════════════════════
+    // 最後のアシスタントメッセージを返す（タスクが正常に完了した場合）。
+    // エラーまたはキャンセルで終了した場合はNoneが返される。
     last_agent_message
 }
 
+/// 会話履歴の自動圧縮を実行する。
+///
+/// トークン使用量がモデルの制限に近づいた場合に呼び出される。
+/// プロバイダーに応じて、リモート（API経由）またはローカルで圧縮を実行する。
 async fn run_auto_compact(sess: &Arc<Session>, turn_context: &Arc<TurnContext>) {
     if should_use_remote_compact_task(sess.as_ref(), &turn_context.client.get_provider()) {
+        // リモート圧縮: APIサーバー側で要約を生成
         run_inline_remote_auto_compact_task(Arc::clone(sess), Arc::clone(turn_context)).await;
     } else {
+        // ローカル圧縮: クライアント側で履歴を圧縮
         run_inline_auto_compact_task(Arc::clone(sess), Arc::clone(turn_context)).await;
     }
 }
 
+/// # 単一ターンの実行（リトライ処理付き）
+///
+/// 1回のモデルAPI呼び出しを実行し、レスポンスを処理する。
+/// ストリーミング接続が切断された場合は、設定されたリトライ回数まで再試行する。
+///
+/// ## 処理フロー
+///
+/// 1. MCPツールの取得とツールルーターの構築
+/// 2. プロンプトの構築（入力 + 利用可能なツール）
+/// 3. try_run_turnを呼び出し、失敗時はリトライ
+///
+/// ## エラーハンドリング戦略
+///
+/// - 回復不能なエラー（TurnAborted, Fatal, QuotaExceeded等）→ 即座に返す
+/// - ストリームエラー → 指数バックオフでリトライ
 #[instrument(level = "trace",
     skip_all,
     fields(
@@ -2369,6 +2503,12 @@ async fn run_turn(
     input: Vec<ResponseItem>,
     cancellation_token: CancellationToken,
 ) -> CodexResult<TurnRunResult> {
+    // ────────────────────────────────────────────────────────────────────────
+    // ステップ1: ツールルーターの構築
+    // ────────────────────────────────────────────────────────────────────────
+    // MCPサーバーから利用可能なツールを取得し、組み込みツールと合わせて
+    // ToolRouterを構築する。ToolRouterは、モデルからのツール呼び出しを
+    // 適切なハンドラにルーティングする役割を持つ。
     let mcp_tools = sess
         .services
         .mcp_connection_manager
@@ -2387,19 +2527,29 @@ async fn run_turn(
         ),
     ));
 
+    // ────────────────────────────────────────────────────────────────────────
+    // ステップ2: プロンプトの構築
+    // ────────────────────────────────────────────────────────────────────────
+    // モデルファミリーが並列ツール呼び出しをサポートしているかチェックし、
+    // 機能フラグと組み合わせて設定する。
     let model_supports_parallel = turn_context
         .client
         .get_model_family()
         .supports_parallel_tool_calls;
 
     let prompt = Prompt {
-        input,
-        tools: router.specs(),
+        input,                 // 会話履歴とユーザー入力
+        tools: router.specs(), // 利用可能なツールの仕様
         parallel_tool_calls: model_supports_parallel && sess.enabled(Feature::ParallelToolCalls),
         base_instructions_override: turn_context.base_instructions.clone(),
         output_schema: turn_context.final_output_json_schema.clone(),
     };
 
+    // ────────────────────────────────────────────────────────────────────────
+    // ステップ3: リトライループ
+    // ────────────────────────────────────────────────────────────────────────
+    // ストリーム接続エラーが発生した場合、プロバイダー固有の最大リトライ回数まで
+    // 再試行する。指数バックオフを使用して、サーバーへの負荷を軽減する。
     let mut retries = 0;
     loop {
         match try_run_turn(
@@ -2412,18 +2562,33 @@ async fn run_turn(
         )
         .await
         {
+            // ────────────────────────────────────────────────────────────────
+            // 成功時: ターン結果を返す
+            // ────────────────────────────────────────────────────────────────
             // todo(aibrahim): 特殊なケースをマッピングし、他のエラーには?を使用する
             Ok(output) => return Ok(output),
+
+            // ────────────────────────────────────────────────────────────────
+            // 回復不能なエラー: 即座に呼び出し元に伝播
+            // ────────────────────────────────────────────────────────────────
+            // これらのエラーはリトライしても解決しないため、即座に返す。
+
+            // ユーザーによるキャンセル
             Err(CodexErr::TurnAborted) => {
                 return Err(CodexErr::TurnAborted);
             }
+            // 割り込みシグナル（Ctrl+Cなど）
             Err(CodexErr::Interrupted) => return Err(CodexErr::Interrupted),
+            // 環境変数の問題
             Err(CodexErr::EnvVar(var)) => return Err(CodexErr::EnvVar(var)),
+            // 回復不能な致命的エラー
             Err(e @ CodexErr::Fatal(_)) => return Err(e),
+            // コンテキストウィンドウ超過: トークンカウントを更新してから返す
             Err(e @ CodexErr::ContextWindowExceeded) => {
                 sess.set_total_tokens_full(&turn_context).await;
                 return Err(e);
             }
+            // 使用量制限（レート制限）に到達
             Err(CodexErr::UsageLimitReached(e)) => {
                 let rate_limits = e.rate_limits.clone();
                 if let Some(rate_limits) = rate_limits {
@@ -2431,11 +2596,20 @@ async fn run_turn(
                 }
                 return Err(CodexErr::UsageLimitReached(e));
             }
+            // 使用量情報が含まれていない
             Err(CodexErr::UsageNotIncluded) => return Err(CodexErr::UsageNotIncluded),
+            // クォータ超過
             Err(e @ CodexErr::QuotaExceeded) => return Err(e),
+            // 無効な画像リクエスト
             Err(e @ CodexErr::InvalidImageRequest()) => return Err(e),
+            // 無効なリクエスト（バリデーションエラー）
             Err(e @ CodexErr::InvalidRequest(_)) => return Err(e),
+            // トークンのリフレッシュ失敗
             Err(e @ CodexErr::RefreshTokenFailed(_)) => return Err(e),
+
+            // ────────────────────────────────────────────────────────────────
+            // リトライ可能なエラー: ストリーム接続エラーなど
+            // ────────────────────────────────────────────────────────────────
             Err(e) => {
                 // プロバイダー固有のストリームリトライ予算を使用する。
                 let max_retries = turn_context.client.get_provider().stream_max_retries();
@@ -2467,12 +2641,24 @@ async fn run_turn(
     }
 }
 
+/// 単一ターンの実行結果を表す構造体。
+///
+/// `run_turn`から返され、`run_task`のメインループで使用される。
 #[derive(Debug)]
 struct TurnRunResult {
+    /// 追加のターンが必要かどうか。
+    /// - `true`: モデルがツール呼び出しを要求し、その結果を待っている
+    /// - `false`: モデルがメッセージのみを返し、タスク完了
     needs_follow_up: bool,
+    /// このターンでモデルが生成した最後のアシスタントメッセージ。
+    /// ツール呼び出しのみの場合は`None`。
     last_agent_message: Option<String>,
 }
 
+/// 実行中のツール呼び出しフューチャーをすべて完了まで待機し、結果を記録する。
+///
+/// ストリーム終了時に呼び出され、まだ完了していないツール実行があれば
+/// それらを待機して結果を会話履歴に記録する。
 async fn drain_in_flight(
     in_flight: &mut FuturesOrdered<BoxFuture<'static, CodexResult<ResponseInputItem>>>,
     sess: Arc<Session>,
@@ -2492,6 +2678,36 @@ async fn drain_in_flight(
     Ok(())
 }
 
+/// # 単一ターンの実際の実行（ストリーミング処理）
+///
+/// モデルAPIへのストリーミングリクエストを送信し、レスポンスイベントを
+/// 逐次処理する。これはターン実行の最も低レベルな関数である。
+///
+/// ## 処理フロー
+///
+/// 1. ロールアウトアイテムの永続化（デバッグ/ログ用）
+/// 2. ストリームリクエストの開始
+/// 3. レスポンスイベントのループ処理:
+///    - OutputItemAdded: 新しい出力アイテムの開始
+///    - OutputTextDelta: テキストの増分更新
+///    - OutputItemDone: 出力アイテムの完了（ツール実行のトリガー）
+///    - RateLimits: レート制限情報の更新
+///    - Completed: ストリーム完了
+/// 4. 実行中のツール呼び出しの完了待機
+/// 5. ファイル差分の発行（変更があった場合）
+///
+/// ## ストリーミングアーキテクチャ
+///
+/// ```text
+/// [Model API] ─► ResponseEvent ─► [イベントハンドラ]
+///                                        │
+///                                        ├─► OutputTextDelta → UIに表示
+///                                        │
+///                                        └─► OutputItemDone(ToolCall) → ツール実行
+///                                                                          │
+///                                                                          ▼
+///                                                               [in_flight キュー]
+/// ```
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace",
     skip_all,
@@ -2508,6 +2724,11 @@ async fn try_run_turn(
     prompt: &Prompt,
     cancellation_token: CancellationToken,
 ) -> CodexResult<TurnRunResult> {
+    // ────────────────────────────────────────────────────────────────────────
+    // ステップ1: ロールアウトアイテムの永続化
+    // ────────────────────────────────────────────────────────────────────────
+    // ターンのコンテキスト情報をロールアウトファイルに保存する。
+    // これはデバッグやリプレイのために使用される。
     let rollout_item = RolloutItem::TurnContext(TurnContextItem {
         cwd: turn_context.cwd.clone(),
         approval_policy: turn_context.approval_policy,
@@ -2523,6 +2744,12 @@ async fn try_run_turn(
     });
 
     sess.persist_rollout_items(&[rollout_item]).await;
+
+    // ────────────────────────────────────────────────────────────────────────
+    // ステップ2: ストリームリクエストの開始
+    // ────────────────────────────────────────────────────────────────────────
+    // モデルAPIへのストリーミング接続を確立する。
+    // キャンセルトークンにより、ユーザーがリクエストをキャンセルできる。
     let mut stream = turn_context
         .client
         .clone()
@@ -2531,18 +2758,32 @@ async fn try_run_turn(
         .or_cancel(&cancellation_token)
         .await??;
 
+    // ────────────────────────────────────────────────────────────────────────
+    // ステップ3: ツール実行ランタイムと状態の初期化
+    // ────────────────────────────────────────────────────────────────────────
+    // ToolCallRuntime: モデルからのツール呼び出しを実行するためのランタイム
     let tool_runtime = ToolCallRuntime::new(
         Arc::clone(&router),
         Arc::clone(&sess),
         Arc::clone(&turn_context),
         Arc::clone(&turn_diff_tracker),
     );
+
+    // in_flight: 実行中のツール呼び出しを追跡するキュー。
+    // 複数のツールが並列で実行される可能性があるため、FuturesOrderedを使用。
     let mut in_flight: FuturesOrdered<BoxFuture<'static, CodexResult<ResponseInputItem>>> =
         FuturesOrdered::new();
-    let mut needs_follow_up = false;
-    let mut last_agent_message: Option<String> = None;
-    let mut active_item: Option<TurnItem> = None;
-    let mut should_emit_turn_diff = false;
+
+    // ターンの状態変数
+    let mut needs_follow_up = false; // 追加ターンが必要か
+    let mut last_agent_message: Option<String> = None; // 最後のアシスタントメッセージ
+    let mut active_item: Option<TurnItem> = None; // 現在処理中のアイテム
+    let mut should_emit_turn_diff = false; // 差分を発行すべきか
+
+    // ────────────────────────────────────────────────────────────────────────
+    // ステップ4: ストリームイベントループ
+    // ────────────────────────────────────────────────────────────────────────
+    // モデルからのストリーミングレスポンスを逐次処理する。
     let receiving_span = trace_span!("receiving_stream");
     let outcome: CodexResult<TurnRunResult> = loop {
         let handle_responses = trace_span!(
